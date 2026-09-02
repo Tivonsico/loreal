@@ -90,6 +90,21 @@ export const api = {
     `/api/v1/management/conversations/${encodeURIComponent(id)}/assistance`,
     { method: "POST" },
   ),
+  customerPanorama: (id) => request(
+    `/api/v1/management/conversations/${encodeURIComponent(id)}/panorama`,
+  ),
+  emotionOverview: () => request("/api/v1/management/emotion-analysis/overview"),
+  emotionAnalyses: (params = {}) => request(
+    `/api/v1/management/emotion-analysis${queryString(params)}`,
+  ),
+  emotionAnalysis: (id) => request(
+    `/api/v1/management/emotion-analysis/${encodeURIComponent(id)}`,
+  ),
+  startEmotionRun: () => request(
+    "/api/v1/management/emotion-analysis/runs",
+    { method: "POST" },
+  ),
+  currentEmotionRun: () => request("/api/v1/management/emotion-analysis/runs/current"),
   searchMessages: (params = {}) => request(
     `/api/v1/management/messages/search${queryString(params)}`,
   ),

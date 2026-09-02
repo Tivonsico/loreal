@@ -318,6 +318,7 @@ def test_assistance_agent_uses_valid_online_provider_and_degrades_safely() -> No
 
     assert online.mode == "online"
     assert online.intent == "物流查询"
+    assert online.intent_confidence == 0.5
     assert online.emotion == "neutral"
     assert online.emotion_confidence == 0.5
     assert online.degraded_reason is None
@@ -419,6 +420,7 @@ def test_model_prompt_requires_complete_transcript_and_handbook_is_optional(monk
         def read(self, _limit):
             content = {
                 "intent": "客户想确认退款进度，客服已处理完毕并致谢",
+                "intent_confidence": 0.87,
                 "summary": "客户在等退款到账。客服祝客户生活愉快。",
                 "service_handling": "客服已核验退款记录并告知预计到账时间。最后祝客户生活愉快。",
                 "current_status": "等待退款到账，客户表示感谢",
@@ -488,6 +490,7 @@ def test_model_prompt_requires_complete_transcript_and_handbook_is_optional(monk
     assert advice.urgency == "normal"
     assert advice.next_actions == ["礼貌收尾，不要重复追问"]
     assert advice.intent == "客户想确认退款进度"
+    assert advice.intent_confidence == 0.87
     assert "生活愉快" not in advice.summary
     assert "生活愉快" not in advice.service_handling
     assert "感谢" not in advice.current_status
@@ -571,6 +574,7 @@ def test_service_assistance_verifies_facts_without_writing_database(app_pair) ->
         assert body["service_handling"]
         assert body["current_status"]
         assert body["emotion"] in {"positive", "neutral", "anxious", "angry", "sad"}
+        assert 0 <= body["intent_confidence"] <= 1
         assert 0 <= body["emotion_confidence"] <= 1
         assert len(body["customer_tags"]) <= 4
         assert len(body["trail_summaries"]) <= 4

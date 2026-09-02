@@ -20,6 +20,7 @@ class ModelAdvice(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     intent: str = Field(min_length=1, max_length=80)
+    intent_confidence: float = Field(default=0.5, ge=0, le=1)
     summary: str = Field(min_length=1, max_length=220)
     service_handling: str = Field(min_length=1, max_length=180)
     current_status: str = Field(min_length=1, max_length=140)
@@ -94,11 +95,13 @@ class OpenAICompatibleChatProvider:
             "不得照抄示例事实。涉及肌肤不适时不得诊断；严重时建议及时就医。"
             "next_actions 必须具体且不能重复已完成动作。suggested_reply 必须给出可发送的回复，"
             "即使无需追问也不能留空。"
-            "输出一个 JSON 对象，只能包含 intent、summary、service_handling、current_status、"
+            "输出一个 JSON 对象，只能包含 intent、intent_confidence、summary、"
+            "service_handling、current_status、"
             "urgency、risks、next_actions、"
             "suggested_reply、evidence_message_ids、emotion、emotion_confidence、"
             "customer_tags、trail_summaries。"
             "urgency 只能是 normal、medium 或 high。evidence_message_ids 只能引用输入消息 ID。"
+            "intent_confidence 是 0 到 1 的意图判断置信度。"
             "emotion 只能是 positive、neutral、anxious、angry、sad；"
             "customer_tags 是最多4个简短消费或服务偏好标签；trail_summaries 最多4条。"
         )

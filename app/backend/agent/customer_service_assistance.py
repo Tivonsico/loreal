@@ -35,6 +35,7 @@ class CustomerServiceAssistanceAgent:
             update={
                 "mode": "online",
                 "intent": self._prefer_complete_intent(advice.intent, offline.intent),
+                "intent_confidence": advice.intent_confidence,
                 "summary": advice.summary,
                 "service_handling": advice.service_handling,
                 "current_status": advice.current_status,
@@ -66,6 +67,7 @@ class CustomerServiceAssistanceAgent:
         )
         combined = " ".join(item["content"] for item in customer_messages)
         intent, urgency = self._classify(combined)
+        intent_confidence = 0.58 if intent == "一般服务咨询" else 0.82
         emotion, emotion_confidence = self._emotion(combined, acknowledged)
         intent = self._complete_intent(intent, combined, context)
         facts = [
@@ -96,6 +98,7 @@ class CustomerServiceAssistanceAgent:
             basis_message_count=context["snapshot"]["message_count"],
             snapshot_fingerprint=context["snapshot"]["fingerprint"],
             intent=intent,
+            intent_confidence=intent_confidence,
             summary=self._summary(intent, context, acknowledged),
             service_handling=service_handling,
             current_status=current_status,

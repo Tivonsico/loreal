@@ -13,12 +13,13 @@ import {
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-const UI_BUILD = "20260901-7";
+const UI_BUILD = "20260903-1";
 const viewNames = {
   chat: ["客户沟通", "客服接待席"],
   orders: ["订单管理", "订单业务"],
   "after-sales": ["售后管理", "售后中心"],
   products: ["商品管理", "商品目录"],
+  risk: ["情绪风险", "预警看板"],
 };
 const ticketLabels = {
   replacement_exchange: "补发换货",
@@ -80,6 +81,12 @@ const state = {
   context: null,
   assistance: null,
   assistanceGeneration: 0,
+  panorama: null,
+  panoramaGeneration: 0,
+  riskGeneration: 0,
+  riskDetailGeneration: 0,
+  riskType: "",
+  riskPollTimer: null,
   conversations: [],
   ticketType: "",
   drawerTrigger: null,
@@ -233,6 +240,14 @@ function resetAssistance() {
   $("#runAssistance").disabled = !state.conversationId;
   $("#runAssistance").hidden = false;
   $("#openAssistance").hidden = true;
+  $("#aiInsightCard").dataset.state = "idle";
+  $("#aiInsightIntent").textContent = "待分析";
+  $("#aiInsightEmotion").textContent = "待分析";
+  $("#aiIntentConfidence").textContent = "0%";
+  $("#aiEmotionConfidence").textContent = "0%";
+  $("#aiIntentBar").style.width = "0%";
+  $("#aiEmotionBar").style.width = "0%";
+  $("#aiInsightStatus").textContent = state.conversationId ? "正在等待分析" : "选择会话后自动分析";
 }
 
 function markAssistanceStale() {
@@ -242,6 +257,25 @@ function markAssistanceStale() {
   $("#assistanceGlance").hidden = true;
   $("#assistanceReplyPreview").hidden = true;
   $("#runAssistance").textContent = "重新分析";
+  $("#aiInsightCard").dataset.state = "stale";
+  $("#aiInsightStatus").textContent = "有新消息，需重新分析";
+}
+
+const emotionLabels = {
+  positive: "积极", neutral: "平稳", anxious: "焦虑", angry: "愤怒", sad: "低落",
+};
+
+function renderAiInsight(result) {
+  const confidence = Math.round((result.emotion_confidence ?? 0.5) * 100);
+  const intentConfidence = Math.round((result.intent_confidence ?? 0.5) * 100);
+  $("#aiInsightCard").dataset.state = result.degraded_reason ? "degraded" : "ready";
+  $("#aiInsightIntent").textContent = result.intent || "一般咨询";
+  $("#aiInsightEmotion").textContent = emotionLabels[result.emotion] || "平稳";
+  $("#aiIntentConfidence").textContent = `${intentConfidence}%`;
+  $("#aiEmotionConfidence").textContent = `${confidence}%`;
+  $("#aiIntentBar").style.width = `${intentConfidence}%`;
+  $("#aiEmotionBar").style.width = `${confidence}%`;
+  $("#aiInsightStatus").textContent = result.degraded_reason ? "已使用快速离线判断" : "已分析完整聊天";
 }
 
 function assistanceStatusLabel(status) {
@@ -282,6 +316,8 @@ async function runAssistance() {
   const generation = ++state.assistanceGeneration;
   const card = $("#assistanceCard");
   card.dataset.state = "loading";
+  $("#aiInsightCard").dataset.state = "loading";
+  $("#aiInsightStatus").textContent = "正在快速分析…";
   $("#assistanceSummary").textContent = "正在读完整聊天，并核对订单、商品和售后…";
   $("#assistanceGlance").hidden = true;
   $("#assistanceReplyPreview").hidden = true;
@@ -292,6 +328,8 @@ async function runAssistance() {
     const result = await api.conversationAssistance(conversationId);
     if (state.conversationId !== conversationId || generation !== state.assistanceGeneration) return;
     state.assistance = result;
+    renderAiInsight(result);
+    if (state.panorama) renderPanorama(state.panorama);
     card.dataset.state = "ready";
     $("#assistanceSummary").textContent = result.summary;
     $("#assistanceIntent").textContent = result.intent;
@@ -306,6 +344,8 @@ async function runAssistance() {
   } catch (error) {
     if (state.conversationId !== conversationId || generation !== state.assistanceGeneration) return;
     state.assistance = null;
+    $("#aiInsightCard").dataset.state = "error";
+    $("#aiInsightStatus").textContent = "分析暂时不可用";
     card.dataset.state = "error";
     $("#assistanceSummary").textContent = `${errorMessage(error)}。聊天与业务信息仍可正常使用。`;
     $("#runAssistance").textContent = "重新尝试";
@@ -360,6 +400,50 @@ function setContextLoading() {
   $("#contextFacts").open = false;
   $("#contextFactsSummary").textContent = "正在读取关联信息…";
   $("#createTicketFromChat").disabled = true;
+  state.panorama = null;
+  $("#customerPanorama").dataset.state = "loading";
+  $("#panoramaName").textContent = "正在读取…";
+  $("#panoramaTags").replaceChildren();
+  $("#serviceTrailList").innerHTML = '<p class="compact-placeholder">正在还原服务轨迹…</p>';
+}
+
+function renderServiceTrail(nodes = [], aiSummaries = []) {
+  $("#serviceTrailCount").textContent = `${nodes.length} 个节点`;
+  $("#serviceTrailList").innerHTML = nodes.map((node, index) => `
+    <article><i aria-hidden="true"></i><div><time>${escapeHtml(formatDate(node.occurred_at))}</time>
+    <strong>${escapeHtml(node.title)}</strong><p>${escapeHtml(aiSummaries[index] || node.detail || "已记录")}</p></div></article>`).join("")
+    || '<p class="compact-placeholder">暂无可还原的服务节点</p>';
+}
+
+function renderPanorama(panorama) {
+  state.panorama = panorama;
+  $("#customerPanorama").dataset.state = "ready";
+  const name = panorama.buyer_nickname || panorama.customer_id;
+  $("#panoramaAvatar").textContent = name.slice(0, 1);
+  $("#panoramaName").textContent = name;
+  $("#panoramaRegion").textContent = panorama.region || "地域未记录";
+  $("#panoramaRisk").textContent = "数据已核验";
+  $("#panoramaSpend").textContent = formatMoney(panorama.recorded_paid_amount);
+  $("#panoramaOrders").textContent = `${panorama.order_count} 单`;
+  $("#panoramaConsultations").textContent = `${panorama.consultation_count_30d} 次`;
+  $("#panoramaAfterSales").textContent = `${panorama.after_sales_count} 单`;
+  const tags = [...(panorama.fact_tags || []), ...(state.assistance?.customer_tags || [])].slice(0, 4);
+  $("#panoramaTags").innerHTML = tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("");
+  renderServiceTrail(panorama.service_trail, state.assistance?.trail_summaries || []);
+}
+
+async function loadCustomerPanorama(conversationId) {
+  const generation = ++state.panoramaGeneration;
+  try {
+    const panorama = await api.customerPanorama(conversationId);
+    if (state.conversationId !== conversationId || generation !== state.panoramaGeneration) return;
+    renderPanorama(panorama);
+  } catch (error) {
+    if (state.conversationId !== conversationId || generation !== state.panoramaGeneration) return;
+    $("#customerPanorama").dataset.state = "error";
+    $("#panoramaName").textContent = "全景暂时不可用";
+    $("#serviceTrailList").innerHTML = `<p class="compact-placeholder">${escapeHtml(errorMessage(error))}</p>`;
+  }
 }
 
 async function selectConversation(conversation) {
@@ -376,6 +460,7 @@ async function selectConversation(conversation) {
   $("#serviceMessages").innerHTML = '<div class="empty-compact">正在读取消息…</div>';
   setContextLoading();
   resetAssistance();
+  void loadCustomerPanorama(conversation.id);
   $$(".conversation-item").forEach((item) => item.classList.toggle("is-active", item.dataset.conversationId === conversation.id));
   try {
     const [messages, context] = await Promise.all([
@@ -608,6 +693,109 @@ async function openProduct(id) {
   } catch (error) { showToast(elements.toasts, errorMessage(error), "error"); }
 }
 
+function renderRiskOverview(overview) {
+  $("#riskWarningCount").textContent = overview.warning_count;
+  $("#riskHighCount").textContent = overview.high_risk_count;
+  $("#riskAnalyzedCount").textContent = overview.analyzed_count;
+  $("#riskFailureCount").textContent = `失败 ${overview.failure_count}`;
+  $("#riskClosureRate").textContent = `${Math.round(overview.closure_rate * 100)}%`;
+  $("#navRiskCount").textContent = overview.warning_count;
+  const max = Math.max(1, ...overview.trend.map((point) => point.warning_count));
+  $("#riskTrendChart").innerHTML = overview.trend.map((point) => `
+    <div class="risk-bar"><strong>${point.warning_count}</strong><i style="height:${Math.max(7, (point.warning_count / max) * 100)}%"></i><small>${escapeHtml(point.date.slice(5))}</small></div>`).join("");
+}
+
+function riskTypeLabel(value) {
+  return {
+    none: "无预警", emotion_escalation: "情绪升级", repeat_contact: "重复进线",
+    repeat_refund: "重复退款", complaint: "舆情投诉",
+  }[value] || value;
+}
+
+function renderRiskList(result) {
+  $("#riskListCount").textContent = `共 ${result.total} 条`;
+  $("#riskList").innerHTML = result.items.map((item) => `
+    <button class="risk-row" type="button" data-risk-conversation="${escapeHtml(item.conversation_id)}">
+      <time>${escapeHtml(formatDate(item.updated_at))}</time>
+      <span><strong>${escapeHtml(item.buyer_nickname || item.conversation_id)}</strong><small>${escapeHtml(item.summary)}</small></span>
+      <b data-severity="${escapeHtml(item.severity)}">${escapeHtml(riskTypeLabel(item.risk_type))}</b>
+      <em>${escapeHtml(item.severity === "high" ? "高" : item.severity === "medium" ? "中" : "低")}</em>
+      <i>${escapeHtml(item.assignee || "未分配")}</i><u>详情</u>
+    </button>`).join("") || '<p class="compact-placeholder">当前筛选下没有预警</p>';
+  $$('[data-risk-conversation]').forEach((row) => row.addEventListener("click", () => openRiskDetail(row.dataset.riskConversation)));
+}
+
+async function loadRiskData() {
+  const generation = ++state.riskGeneration;
+  try {
+    const [overview, list] = await Promise.all([
+      api.emotionOverview(),
+      api.emotionAnalyses({ risk_type: state.riskType, page_size: 200 }),
+    ]);
+    if (generation !== state.riskGeneration || state.view !== "risk") return;
+    renderRiskOverview(overview);
+    renderRiskList(list);
+  } catch (error) {
+    if (generation !== state.riskGeneration) return;
+    $("#riskList").innerHTML = `<p class="compact-placeholder">${escapeHtml(errorMessage(error))}</p>`;
+  }
+}
+
+async function openRiskDetail(conversationId) {
+  const generation = ++state.riskDetailGeneration;
+  try {
+    const item = await api.emotionAnalysis(conversationId);
+    if (generation !== state.riskDetailGeneration) return;
+    openDrawer(`<span class="eyebrow">情绪风险详情</span><h2>${escapeHtml(item.buyer_nickname || item.conversation_id)}</h2><div class="drawer-badges">${badge(riskTypeLabel(item.risk_type), "warning")}${badge(item.severity === "high" ? "高风险" : "需关注", "active")}</div><p class="drawer-lead">${escapeHtml(item.summary)}</p><dl class="detail-list"><dt>情绪判断</dt><dd>${escapeHtml(emotionLabels[item.emotion] || item.emotion)} · ${Math.round(item.confidence * 100)}%</dd><dt>处理人</dt><dd>${escapeHtml(item.assignee || "未分配")}</dd><dt>分析时间</dt><dd>${escapeHtml(formatDate(item.analyzed_at))}</dd></dl><a class="button button-primary button-full" href="${routeHref("chat", { conversation: item.conversation_id })}">查看原会话</a>`, "risk", conversationId);
+  } catch (error) { showToast(elements.toasts, errorMessage(error), "error"); }
+}
+
+function renderRiskRun(run) {
+  const active = ["queued", "running"].includes(run.status);
+  const ratio = run.total_count ? Math.round((run.processed_count / run.total_count) * 100) : 0;
+  $("#riskProgress").hidden = !active;
+  $("#riskProgressText").textContent = active
+    ? `正在分析 ${run.processed_count}/${run.total_count}`
+    : run.status === "completed" ? "增量分析已完成" : `已完成，失败 ${run.failed_count}`;
+  $("#riskProgressBar").style.width = `${ratio}%`;
+  $("#riskRunStatus").textContent = active
+    ? `后台低思考分析中：${run.processed_count}/${run.total_count}`
+    : "已展示最新持久化分析结果。";
+  return active;
+}
+
+async function pollRiskRun() {
+  window.clearTimeout(state.riskPollTimer);
+  try {
+    const run = await api.currentEmotionRun();
+    const active = renderRiskRun(run);
+    await loadRiskData();
+    if (active && state.view === "risk") {
+      state.riskPollTimer = window.setTimeout(pollRiskRun, 1500);
+    }
+  } catch (error) {
+    $("#riskRunStatus").textContent = errorMessage(error);
+  }
+}
+
+async function startRiskAnalysis() {
+  try {
+    const run = await api.startEmotionRun();
+    renderRiskRun(run);
+    void pollRiskRun();
+  } catch (error) { showToast(elements.toasts, errorMessage(error), "error"); }
+}
+
+function initializeRisk() {
+  $("#refreshRiskAnalysis").addEventListener("click", startRiskAnalysis);
+  $$('[data-risk-type]').forEach((button) => button.addEventListener("click", () => {
+    state.riskType = button.dataset.riskType;
+    $$('[data-risk-type]').forEach((item) => item.classList.toggle("is-active", item === button));
+    void loadRiskData();
+  }));
+  void loadRiskData().then(startRiskAnalysis);
+}
+
 function openTicketDialog() {
   if (!state.context) return;
   const form = $("#createTicketForm");
@@ -709,6 +897,7 @@ function initializeView() {
     $("#productFilters").addEventListener("submit", (event) => { event.preventDefault(); loadProducts(); });
     loadProducts();
   }
+  if (state.view === "risk") initializeRisk();
   const params = new URLSearchParams(window.location.search);
   if (state.view === "orders" && params.get("order")) openOrder(params.get("order"));
   if (state.view === "after-sales" && params.get("ticket")) openTicket(params.get("ticket"));
@@ -722,7 +911,10 @@ document.addEventListener("keydown", (event) => {
   if (elements.drawer.classList.contains("is-open")) closeDrawer();
   else if (document.body.classList.contains("nav-open")) setMobileNavigation(false);
 });
-window.addEventListener("beforeunload", () => socket.close());
+window.addEventListener("beforeunload", () => {
+  socket.close();
+  window.clearTimeout(state.riskPollTimer);
+});
 initializeShell();
 initializeImport();
 initializeView();

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f6f1f4">
-  <meta name="ui-build" content="20260901-7">
+  <meta name="ui-build" content="20260903-1">
   <title>L'Oréal Service Atelier · 客服工作台</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <script>
@@ -22,14 +22,14 @@
     })();
   </script>
   <link rel="stylesheet" href="/static/styles.css?v=20260901-6">
-  <link rel="stylesheet" href="/static/service_workspace_v03.css?v=20260902-1">
-  <script type="module" src="/static/service_workspace.js?v=20260901-7"></script>
+  <link rel="stylesheet" href="/static/service_workspace_v03.css?v=20260903-1">
+  <script type="module" src="/static/service_workspace.js?v=20260903-1"></script>
 </head>
 <body class="service-page service-v03" data-page-role="customer_service">
   <div class="spectrum-rail" aria-hidden="true"></div>
 
   <header class="atelier-masthead">
-    <a class="workspace-brand" href="/workspace/chat?ui=20260901-7" aria-label="返回客服工作台">
+    <a class="workspace-brand" href="/workspace/chat?ui=20260903-1" aria-label="返回客服工作台">
       <span class="brand-name">L'ORÉAL</span>
       <span class="brand-subtitle">SERVICE ATELIER</span>
     </a>
@@ -37,10 +37,11 @@
       <span aria-hidden="true"></span><span aria-hidden="true"></span>
     </button>
     <nav class="workspace-nav" id="workspaceNavigation" aria-label="客服工作区">
-      <a href="/workspace/chat?ui=20260901-7" data-workspace-link="chat"><span>客户沟通</span></a>
-      <a href="/workspace/orders?ui=20260901-7" data-workspace-link="orders"><span>订单管理</span></a>
-      <a href="/workspace/after-sales?ui=20260901-7" data-workspace-link="after-sales"><span>售后管理</span><b id="navPendingCount" aria-label="待跟进数量">—</b></a>
-      <a href="/workspace/products?ui=20260901-7" data-workspace-link="products"><span>商品管理</span></a>
+      <a href="/workspace/chat?ui=20260903-1" data-workspace-link="chat"><span>客户沟通</span></a>
+      <a href="/workspace/orders?ui=20260903-1" data-workspace-link="orders"><span>订单管理</span></a>
+      <a href="/workspace/after-sales?ui=20260903-1" data-workspace-link="after-sales"><span>售后管理</span><b id="navPendingCount" aria-label="待跟进数量">—</b></a>
+      <a href="/workspace/products?ui=20260903-1" data-workspace-link="products"><span>商品管理</span></a>
+      <a href="/workspace/risk?ui=20260903-1" data-workspace-link="risk"><span>情绪风险</span><b id="navRiskCount" aria-label="风险数量">—</b></a>
     </nav>
     <div class="workspace-status" aria-live="polite" data-connection="idle" id="serviceConnectionStatus">
       <span class="connection-dot" aria-hidden="true"></span>
@@ -98,6 +99,24 @@
         <aside class="context-rail atelier-panel" aria-label="接待辅助与关联事实">
           <div class="context-heading"><span class="eyebrow">接待辅助</span><p>AI 提炼当前会话，原始业务信息按需核对</p></div>
           <div class="context-body">
+            <section class="customer-panorama" id="customerPanorama" data-state="idle" aria-label="客户全景">
+              <header><span>客户全景</span><small id="panoramaRisk">待分析</small></header>
+              <div class="panorama-identity"><i id="panoramaAvatar">客</i><p><strong id="panoramaName">选择会话</strong><span id="panoramaRegion">地域待核对</span></p></div>
+              <div class="panorama-tags" id="panoramaTags"></div>
+              <dl class="panorama-metrics"><div><dt>记录消费</dt><dd id="panoramaSpend">—</dd></div><div><dt>订单</dt><dd id="panoramaOrders">—</dd></div><div><dt>30 天咨询</dt><dd id="panoramaConsultations">—</dd></div><div><dt>历史售后</dt><dd id="panoramaAfterSales">—</dd></div></dl>
+            </section>
+            <section class="customer-service-trail" id="customerServiceTrail" data-state="idle" aria-label="服务轨迹">
+              <header><span>服务轨迹</span><small id="serviceTrailCount">0 个节点</small></header>
+              <div class="service-trail-list" id="serviceTrailList"><p class="compact-placeholder">选择会话后显示</p></div>
+            </section>
+            <section class="ai-insight-card" id="aiInsightCard" data-state="idle" aria-label="AI 精简分析">
+              <header><strong>AI 分析</strong><span>Agent</span></header>
+              <div class="ai-insight-row"><p><small>用户意图</small><b id="aiInsightIntent">待分析</b></p><em id="aiIntentConfidence">0%</em></div>
+              <i class="ai-confidence-track"><span id="aiIntentBar"></span></i>
+              <div class="ai-insight-row"><p><small>情绪判断</small><b id="aiInsightEmotion">待分析</b></p><em id="aiEmotionConfidence">0%</em></div>
+              <i class="ai-confidence-track"><span id="aiEmotionBar"></span></i>
+              <small class="ai-insight-status" id="aiInsightStatus">选择会话后自动分析</small>
+            </section>
             <section class="assistance-card" id="assistanceCard" data-state="idle" aria-label="AI 会话判断">
               <p class="assistance-summary" id="assistanceSummary">选中会话后会自动分析，不会自动发送回复。</p>
               <div class="assistance-glance" id="assistanceGlance" hidden>
@@ -142,6 +161,23 @@
         <div class="metric-strip" id="productMetrics" aria-label="商品概览"></div>
         <form class="management-filters compact-management-filter" id="productFilters"><label><span>搜索商品</span><input name="q" type="search" placeholder="商品名称、货号或 SKU"></label><button class="button button-primary">搜索商品</button></form>
         <div class="product-grid" id="productsGrid"><div class="empty-compact">正在读取商品…</div></div><div class="table-footer" id="productsPagination"></div>
+      </section>
+
+      <section class="workspace-view risk-workspace atelier-panel" data-workspace-view="risk" hidden>
+        <div class="risk-hero"><div><h1>情绪风险跟踪看板</h1><p id="riskRunStatus">先显示已缓存结果，后台自动补齐新会话。</p></div><button class="button button-secondary" id="refreshRiskAnalysis" type="button">刷新分析</button></div>
+        <div class="risk-kpis" id="riskKpis" aria-label="情绪风险概览">
+          <article><span>今日预警</span><strong id="riskWarningCount">—</strong><small>需要关注的会话</small></article>
+          <article><span>高风险待处理</span><strong id="riskHighCount">—</strong><small>优先确认与回应</small></article>
+          <article><span>已分析会话</span><strong id="riskAnalyzedCount">—</strong><small id="riskFailureCount">失败 0</small></article>
+          <article><span>服务闭环率</span><strong id="riskClosureRate">—</strong><small>来自售后工单状态</small></article>
+        </div>
+        <div class="risk-dashboard-grid">
+          <section class="risk-trend-card"><header><h2>近 7 日风险趋势</h2><small>单位：预警数</small></header><div class="risk-bars" id="riskTrendChart" aria-label="近 7 日风险柱状图"></div></section>
+          <section class="risk-list-card"><header><div><h2>预警列表</h2><small id="riskListCount">共 0 条</small></div><div class="risk-progress" id="riskProgress" hidden><span id="riskProgressText">正在分析</span><i><b id="riskProgressBar"></b></i></div></header>
+            <form class="risk-filters" id="riskFilters"><button class="is-active" type="button" data-risk-type="">全部</button><button type="button" data-risk-type="emotion_escalation">情绪升级</button><button type="button" data-risk-type="repeat_contact">重复进线</button><button type="button" data-risk-type="repeat_refund">重复退款</button><button type="button" data-risk-type="complaint">舆情投诉</button></form>
+            <div class="risk-list" id="riskList"><p class="compact-placeholder">正在读取已缓存分析…</p></div>
+          </section>
+        </div>
       </section>
     </section>
   </main>

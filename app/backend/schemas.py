@@ -319,6 +319,7 @@ class AssistanceAnalysisOut(BaseModel):
     basis_message_count: int
     snapshot_fingerprint: str
     intent: str
+    intent_confidence: float = Field(default=0.5, ge=0, le=1)
     summary: str
     service_handling: str
     current_status: str

@@ -15,7 +15,7 @@ def test_root_page_matches_backend_role(app_pair):
 
         assert service_page.status_code == 200
         assert len(service_page.history) == 1
-        assert str(service_page.url).endswith("/workspace/chat?ui=20260901-7")
+        assert str(service_page.url).endswith("/workspace/chat?ui=20260903-1")
         assert service_page.headers["cache-control"] == "no-store, max-age=0"
         assert service_page.headers["pragma"] == "no-cache"
         assert 'data-page-role="customer_service"' in service_page.text
@@ -31,7 +31,7 @@ def test_frontend_static_assets_and_existing_docs_remain_available(app_pair):
         assert client.get("/docs").status_code == 200
 
 
-def test_customer_service_has_four_direct_workspace_routes(app_pair):
+def test_customer_service_has_five_direct_workspace_routes(app_pair):
     customer_app, customer_service_app = app_pair
     with TestClient(customer_service_app) as client:
         for route, label in {
@@ -39,11 +39,12 @@ def test_customer_service_has_four_direct_workspace_routes(app_pair):
             "/workspace/orders": "订单管理",
             "/workspace/after-sales": "售后管理",
             "/workspace/products": "商品管理",
+            "/workspace/risk": "情绪风险跟踪看板",
         }.items():
             page = client.get(route)
             assert page.status_code == 200
             assert len(page.history) == 1
-            assert "ui=20260901-7" in str(page.url)
+            assert "ui=20260903-1" in str(page.url)
             assert page.headers["cache-control"] == "no-store, max-age=0"
             assert page.headers["pragma"] == "no-cache"
             assert label in page.text
@@ -64,8 +65,8 @@ def test_customer_service_uses_versioned_isolated_visual_layer(app_pair):
         assert stylesheet.status_code == 200
         assert workspace_script.status_code == 200
         assert stylesheet.headers["content-type"].startswith("text/css")
-        assert "service_workspace_v03.css?v=20260902-1" in page.text
-        assert '<meta name="ui-build" content="20260901-7">' in page.text
+        assert "service_workspace_v03.css?v=20260903-1" in page.text
+        assert '<meta name="ui-build" content="20260903-1">' in page.text
         assert 'const storageKey = "loreal.service.ui-build"' in page.text
         assert 'window.addEventListener("pageshow"' in page.text
         assert "event.persisted" in page.text
@@ -74,10 +75,11 @@ def test_customer_service_uses_versioned_isolated_visual_layer(app_pair):
         assert "订单台账" not in page.text
         assert "工单中心" not in page.text
         assert "商品档案</small>" not in page.text
-        assert "service_workspace.js?v=20260901-7" in page.text
-        assert 'href="/workspace/chat?ui=20260901-7"' in page.text
-        assert 'href="/workspace/orders?ui=20260901-7"' in page.text
-        assert 'const UI_BUILD = "20260901-7"' in workspace_script.text
+        assert "service_workspace.js?v=20260903-1" in page.text
+        assert 'href="/workspace/chat?ui=20260903-1"' in page.text
+        assert 'href="/workspace/orders?ui=20260903-1"' in page.text
+        assert 'href="/workspace/risk?ui=20260903-1"' in page.text
+        assert 'const UI_BUILD = "20260903-1"' in workspace_script.text
         assert 'url.searchParams.set("ui", UI_BUILD)' in workspace_script.text
         assert '<span class="eyebrow">会话</span><h1>会话队列</h1>' not in page.text
         assert '<span class="eyebrow">订单业务</span><h1>订单管理</h1>' not in page.text
@@ -121,6 +123,16 @@ def test_customer_service_uses_versioned_isolated_visual_layer(app_pair):
         assert "function markAssistanceStale()" in workspace_script.text
         assert "api.conversationAssistance(conversationId)" in workspace_script.text
         assert "void runAssistance()" in workspace_script.text
+        assert workspace_script.text.count("api.conversationAssistance(conversationId)") == 1
+        assert "result.intent_confidence ?? 0.5" in workspace_script.text
+        assert "confidence + 4" not in workspace_script.text
+        assert "api.customerPanorama(conversationId)" in workspace_script.text
+        assert 'risk: ["情绪风险", "预警看板"]' in workspace_script.text
+        assert 'if (state.view === "risk") initializeRisk();' in workspace_script.text
+        assert "generation !== state.riskGeneration" in workspace_script.text
+        assert "window.setTimeout(pollRiskRun, 1500)" in workspace_script.text
+        assert "height: 144px; min-height: 136px; max-height: 154px" in stylesheet.text
+        assert "grid-template-columns: minmax(260px, 34fr) minmax(0, 66fr)" in stylesheet.text
         assert "依据完整聊天" in workspace_script.text
         assert "未配置话术资料，由模型独立判断" in workspace_script.text
         assert "客户意图" in workspace_script.text
@@ -149,9 +161,13 @@ def test_customer_service_shell_preserves_workspace_dom_contract(app_pair):
         'data-workspace-view="orders"',
         'data-workspace-view="after-sales"',
         'data-workspace-view="products"',
+        'data-workspace-view="risk"',
         'id="serviceConversationList"',
         'id="serviceMessages"',
         'id="customerContextCard"',
+        'id="customerPanorama"',
+        'id="customerServiceTrail"',
+        'id="aiInsightCard"',
         'id="assistanceCard"',
         'id="assistanceGlance"',
         'id="assistanceReplyPreview"',
@@ -176,6 +192,16 @@ def test_customer_service_shell_preserves_workspace_dom_contract(app_pair):
     assert 'id="assistanceMode"' not in page
     assert "先看结论" not in page
     assert page.index('id="assistanceReplyPreview"') < page.index('id="openAssistance"')
+    assert page.index('id="customerPanorama"') < page.index('id="customerServiceTrail"')
+    assert page.index('id="customerServiceTrail"') < page.index('id="aiInsightCard"')
+    assert page.index('id="aiInsightCard"') < page.index('id="assistanceCard"')
+    assert page.index('id="assistanceCard"') < page.index('id="contextFacts"')
+    compact_card = page.split('id="aiInsightCard"', 1)[1].split(
+        'id="assistanceCard"', 1
+    )[0]
+    assert "建议回复" not in compact_card
+    assert "查看完整建议" not in compact_card
+    assert "<button" not in compact_card
 
 
 def test_frontends_localize_operational_labels_and_work_order_fields(app_pair):
@@ -188,7 +214,7 @@ def test_frontends_localize_operational_labels_and_work_order_fields(app_pair):
         customer_page = client.get("/").text
         customer_script = client.get("/static/customer.js").text
 
-    assert "service_workspace.js?v=20260901-7" in service_page
+    assert "service_workspace.js?v=20260903-1" in service_page
     assert "customer.js?v=20260810-2" in customer_page
     assert 'from "./chat.js?v=20260810-1"' in service_script
     assert 'from "./chat.js?v=20260810-1"' in customer_script
@@ -298,9 +324,9 @@ def test_customer_and_service_share_atelier_visual_contract(app_pair):
 
     assert "styles.css?v=20260901-6" in customer_page
     assert "styles.css?v=20260901-6" in service_page
-    assert "service_workspace_v03.css?v=20260902-1" in service_page
+    assert "service_workspace_v03.css?v=20260903-1" in service_page
     assert service_page.index("styles.css?v=20260901-6") < service_page.index(
-        "service_workspace_v03.css?v=20260902-1"
+        "service_workspace_v03.css?v=20260903-1"
     )
 
     assert "grid-template-columns: 270px minmax(380px, 1fr) 410px" in shared_css
