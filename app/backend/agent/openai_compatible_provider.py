@@ -14,13 +14,6 @@ class OpenAICompatibleProviderError(RuntimeError):
     pass
 
 
-class ModelJourneyInsight(BaseModel):
-    kind: str = Field(min_length=1, max_length=40)
-    source_type: Literal["conversation", "order", "work_order"]
-    source_id: str = Field(min_length=1, max_length=120)
-    summary: str = Field(min_length=1, max_length=160)
-
-
 class ModelAdvice(BaseModel):
     # Only the allowlisted fields below leave the provider boundary. Harmless
     # extra keys should not discard an otherwise usable model answer.
@@ -30,19 +23,11 @@ class ModelAdvice(BaseModel):
     summary: str = Field(min_length=1, max_length=220)
     service_handling: str = Field(min_length=1, max_length=180)
     current_status: str = Field(min_length=1, max_length=140)
-    sentiment: Literal["calm", "concerned"]
-    sentiment_confidence: float = Field(default=0.82, ge=0, le=1)
-    sentiment_reason: str = Field(
-        default="根据完整会话中的客户表达判断",
-        min_length=1,
-        max_length=120,
-    )
     urgency: Literal["normal", "medium", "high"]
     risks: list[str] = Field(max_length=5)
     next_actions: list[str] = Field(min_length=1, max_length=5)
     suggested_reply: str = Field(min_length=1, max_length=2000)
     evidence_message_ids: list[int] = Field(max_length=5)
-    journey_insights: list[ModelJourneyInsight] = Field(default_factory=list, max_length=4)
 
 
 class OpenAICompatibleChatProvider:
@@ -84,14 +69,9 @@ class OpenAICompatibleChatProvider:
             "next_actions 必须具体且不能重复已完成动作。suggested_reply 必须给出可发送的回复，"
             "即使无需追问也不能留空。"
             "输出一个 JSON 对象，只能包含 intent、summary、service_handling、current_status、"
-            "sentiment、sentiment_confidence、sentiment_reason、urgency、risks、next_actions、"
-            "suggested_reply、evidence_message_ids；如果 customer_journey 存在，还要输出 journey_insights。"
-            "sentiment 只能是 calm 或 concerned；"
-            "sentiment_confidence 是 0 到 1 的小数，表示情绪判断把握；"
-            "sentiment_reason 用一句话说明判断依据，不能复述整段聊天；"
+            "urgency、risks、next_actions、"
+            "suggested_reply、evidence_message_ids。"
             "urgency 只能是 normal、medium 或 high。evidence_message_ids 只能引用输入消息 ID。"
-            "customer_journey 存在时，journey_insights 必须逐条对应输入节点，原样保留 kind、source_type、source_id；"
-            "summary 要说明该节点实际发生了什么以及结果，使用自然中文的一句话，不得只复述标题或内部枚举，不得编造，单条不超过60字。"
         )
         few_shot_messages = self._few_shot_messages()
         payload: dict[str, Any] = {
@@ -147,20 +127,7 @@ class OpenAICompatibleChatProvider:
         ]
         if not evidence:
             evidence = [item["id"] for item in messages if item["sender_role"] == "customer"][-3:]
-        allowed = {
-            (
-                item.get("kind"),
-                (item.get("source_ref") or {}).get("source_type"),
-                str((item.get("source_ref") or {}).get("source_id")),
-            )
-            for item in context.get("customer_journey", [])
-        }
-        insights = [
-            item
-            for item in advice.journey_insights
-            if (item.kind, item.source_type, item.source_id) in allowed
-        ]
-        return advice.model_copy(update={"evidence_message_ids": evidence, "journey_insights": insights})
+        return advice.model_copy(update={"evidence_message_ids": evidence})
 
     @staticmethod
     def _few_shot_messages() -> list[dict[str, str]]:
@@ -180,9 +147,6 @@ class OpenAICompatibleChatProvider:
                         "客服确认退货已经入库了，拿到收款信息后提交了10元退款申请。"
                     ),
                     "current_status": "退款申请已经提交了，现在等财务审核，预计1-3个工作日到账。",
-                    "sentiment": "concerned",
-                    "sentiment_confidence": 0.91,
-                    "sentiment_reason": "客户持续追问退款到账，表现出明显担忧。",
                     "urgency": "medium",
                     "risks": [],
                     "next_actions": ["留意退款到账情况，超时后跟进财务"],
@@ -198,9 +162,6 @@ class OpenAICompatibleChatProvider:
                     "summary": "包裹卡在中转站了。客服已经联系快递催件，明天还会继续查看。",
                     "service_handling": "客服查了物流轨迹，也联系快递催件了。",
                     "current_status": "现在等快递更新物流，明天还没动就继续跟进。",
-                    "sentiment": "concerned",
-                    "sentiment_confidence": 0.89,
-                    "sentiment_reason": "客户连续追问物流停滞和送达时间。",
                     "urgency": "medium",
                     "risks": [],
                     "next_actions": ["明天检查物流轨迹是否更新"],
@@ -216,9 +177,6 @@ class OpenAICompatibleChatProvider:
                     "summary": "客户用了喷雾后脸上紧绷刺痛。客服先让客户停用，也通过了退货申请。",
                     "service_handling": "客服让客户先停用喷雾，并帮客户通过了退货申请。",
                     "current_status": "现在等客户寄回，仓库收到后再退款。",
-                    "sentiment": "concerned",
-                    "sentiment_confidence": 0.95,
-                    "sentiment_reason": "客户描述使用后刺痛，并明确要求退货。",
                     "urgency": "high",
                     "risks": ["如果不适持续或加重，需要及时就医"],
                     "next_actions": ["确认客户已经停用产品", "跟进退件物流"],
@@ -254,13 +212,6 @@ class OpenAICompatibleChatProvider:
         if not isinstance(data, dict):
             raise ValueError("模型 JSON 不是对象")
 
-        sentiment_map = {
-            "平静": "calm",
-            "正常": "calm",
-            "担忧": "concerned",
-            "焦虑": "concerned",
-            "concern": "concerned",
-        }
         urgency_map = {
             "一般": "normal",
             "普通": "normal",
@@ -270,24 +221,12 @@ class OpenAICompatibleChatProvider:
             "高": "high",
             "紧急": "high",
         }
-        data["sentiment"] = sentiment_map.get(data.get("sentiment"), data.get("sentiment"))
         data["urgency"] = urgency_map.get(data.get("urgency"), data.get("urgency"))
-        try:
-            data["sentiment_confidence"] = max(
-                0.0, min(1.0, float(data.get("sentiment_confidence", 0.82)))
-            )
-        except (TypeError, ValueError):
-            data["sentiment_confidence"] = 0.82
         for field in ("risks", "next_actions"):
             if isinstance(data.get(field), str):
                 data[field] = [data[field]]
             if isinstance(data.get(field), list):
                 data[field] = data[field][:5]
-        if isinstance(data.get("journey_insights"), list):
-            for item in data["journey_insights"][:4]:
-                if isinstance(item, dict) and isinstance(item.get("summary"), str):
-                    item["summary"] = OpenAICompatibleChatProvider._fit_text(item["summary"], 160)
-            data["journey_insights"] = data["journey_insights"][:4]
         if isinstance(data.get("evidence_message_ids"), list):
             data["evidence_message_ids"] = [
                 int(item)
@@ -300,7 +239,6 @@ class OpenAICompatibleChatProvider:
             ("service_handling", 180),
             ("current_status", 140),
             ("suggested_reply", 2000),
-            ("sentiment_reason", 120),
         ):
             if isinstance(data.get(field), str):
                 data[field] = OpenAICompatibleChatProvider._fit_text(data[field], limit)

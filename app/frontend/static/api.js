@@ -86,13 +86,6 @@ export const api = {
   conversationContext: (id) => request(
     `/api/v1/management/conversations/${encodeURIComponent(id)}/context`,
   ),
-  customerPanorama: (id) => request(
-    `/api/v1/management/conversations/${encodeURIComponent(id)}/panorama`,
-  ),
-  customerInsight: (id) => request(
-    `/api/v1/management/conversations/${encodeURIComponent(id)}/panorama/analysis`,
-    { method: "POST" },
-  ),
   conversationAssistance: (id) => request(
     `/api/v1/management/conversations/${encodeURIComponent(id)}/assistance`,
     { method: "POST" },
@@ -113,15 +106,6 @@ export const api = {
   ),
   managementProduct: (id) => request(
     `/api/v1/management/products/${encodeURIComponent(id)}`,
-  ),
-  riskOverview: (params = {}) => request(
-    `/api/v1/management/risks/overview${queryString(params)}`,
-  ),
-  riskWarnings: (params = {}) => request(
-    `/api/v1/management/risks${queryString(params)}`,
-  ),
-  riskWarning: (id) => request(
-    `/api/v1/management/risks/${encodeURIComponent(id)}`,
   ),
   updateManagementProduct: (id, payload) => request(
     `/api/v1/management/products/${encodeURIComponent(id)}`,

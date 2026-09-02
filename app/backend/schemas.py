@@ -307,13 +307,6 @@ class AssistanceFactOut(BaseModel):
     summary: str
 
 
-class AssistanceJourneyInsightOut(BaseModel):
-    kind: str = Field(min_length=1, max_length=40)
-    source_type: Literal["conversation", "order", "work_order"]
-    source_id: str = Field(min_length=1, max_length=120)
-    summary: str = Field(min_length=1, max_length=160)
-
-
 class AssistanceAnalysisOut(BaseModel):
     agent_name: str
     agent_version: str
@@ -326,16 +319,12 @@ class AssistanceAnalysisOut(BaseModel):
     summary: str
     service_handling: str
     current_status: str
-    sentiment: Literal["calm", "concerned"]
-    sentiment_confidence: float = Field(ge=0, le=1)
-    sentiment_reason: str
     urgency: Literal["normal", "medium", "high"]
     facts: list[AssistanceFactOut]
     risks: list[str]
     next_actions: list[str]
     suggested_reply: str
     evidence_message_ids: list[int]
-    journey_insights: list[AssistanceJourneyInsightOut] = Field(default_factory=list, max_length=4)
     playbook_status: Literal["source_unavailable", "no_match", "present", "truncated"]
     degraded_reason: str | None = None
 
@@ -356,181 +345,3 @@ class ManagementSummaryOut(BaseModel):
     work_orders: int
     pending_work_orders: int
     work_orders_by_type: dict[str, int]
-
-
-class SourceReferenceOut(BaseModel):
-    source_type: Literal["conversation", "message", "order", "work_order", "status_log"]
-    source_id: str
-
-
-class PanoramaSnapshotOut(BaseModel):
-    generated_at: datetime
-    basis_last_message_id: int | None = None
-    data_latest_at: datetime | None = None
-
-
-class CustomerIdentityOut(BaseModel):
-    customer_id: str
-    buyer_nickname: str | None = None
-    identity_basis: Literal["exact_customer_id"] = "exact_customer_id"
-
-
-class CustomerMetricsOut(BaseModel):
-    recorded_paid_amount: Decimal
-    order_count: int
-    average_order_value: Decimal
-    consultation_count_30d: int
-    after_sales_count: int
-    latest_order_at: datetime | None = None
-
-
-class CustomerTagOut(BaseModel):
-    code: str
-    label: str
-    basis: str
-    source_refs: list[SourceReferenceOut]
-    derived: Literal[True] = True
-
-
-class CustomerAddressOut(BaseModel):
-    province: str | None = None
-    city: str | None = None
-    order_count: int
-    last_used_at: datetime | None = None
-
-
-class CustomerOrderSummaryOut(BaseModel):
-    external_id: str
-    product_name: str | None = None
-    recorded_paid_amount: Decimal | None = None
-    status: str
-    ordered_at: datetime | None = None
-
-
-class CustomerAfterSalesSummaryOut(BaseModel):
-    external_id: str
-    ticket_type: WorkOrderType
-    status: WorkOrderStatus
-    assignee: str | None = None
-    opened_at: datetime | None = None
-    closed_at: datetime | None = None
-
-
-class ServiceTrailNodeOut(BaseModel):
-    kind: Literal[
-        "order_created",
-        "consultation",
-        "work_order_opened",
-        "work_order_status",
-        "work_order_closed",
-    ]
-    occurred_at: datetime
-    title: str
-    detail: str | None = None
-    source_ref: SourceReferenceOut
-
-
-class DerivedMoodOut(BaseModel):
-    value: Literal["calm", "concerned", "unknown"]
-    basis_message_id: int | None = None
-    basis: str
-    derived: Literal[True] = True
-
-
-class CustomerPanoramaOut(BaseModel):
-    snapshot: PanoramaSnapshotOut
-    identity: CustomerIdentityOut
-    metrics: CustomerMetricsOut
-    tags: list[CustomerTagOut]
-    addresses: list[CustomerAddressOut]
-    recent_orders: list[CustomerOrderSummaryOut]
-    recent_after_sales: list[CustomerAfterSalesSummaryOut]
-    service_trail: list[ServiceTrailNodeOut]
-    service_trail_total: int
-    derived_mood: DerivedMoodOut
-
-
-class CustomerInsightOut(BaseModel):
-    generated_at: datetime
-    mode: Literal["offline", "online"]
-    intent: str
-    summary: str
-    sentiment: Literal["calm", "concerned"]
-    emotion_label: str
-    sentiment_confidence: float = Field(ge=0, le=1)
-    sentiment_reason: str
-    urgency: Literal["normal", "medium", "high"]
-    risk_level: Literal["low", "medium", "high"]
-    evidence_message_ids: list[int]
-    degraded_reason: str | None = None
-    journey_insights: list[AssistanceJourneyInsightOut] = Field(default_factory=list, max_length=4)
-    assistance: AssistanceAnalysisOut
-
-
-RiskKind = Literal[
-    "emotion_escalation",
-    "repeat_contact",
-    "repeat_refund",
-    "public_complaint",
-    "service_timeout",
-]
-RiskSeverity = Literal["low", "medium", "high"]
-RiskStatus = Literal["pending_confirmation", "processing", "closed"]
-
-
-class RiskEvidenceOut(BaseModel):
-    source_ref: SourceReferenceOut
-    occurred_at: datetime
-    label: str
-    excerpt: str | None = None
-
-
-class RiskWarningOut(BaseModel):
-    id: str
-    rule_code: RiskKind
-    rule_version: Literal["risk-v1"] = "risk-v1"
-    kind: RiskKind
-    severity: RiskSeverity
-    status: RiskStatus
-    status_basis: str
-    assignee: str | None = None
-    occurred_at: datetime
-    first_response_at: datetime | None = None
-    resolved_at: datetime | None = None
-    conversation_id: str | None = None
-    customer_id: str
-    buyer_nickname: str | None = None
-    order_external_id: str | None = None
-    work_order_external_id: str | None = None
-    title: str
-    summary: str
-    evidence_message_ids: list[int]
-    source_refs: list[SourceReferenceOut]
-    evidence: list[RiskEvidenceOut]
-    derived: Literal[True] = True
-
-
-class RiskWarningPage(PageMeta):
-    rule_version: Literal["risk-v1"] = "risk-v1"
-    as_of_date: str
-    data_latest_at: datetime | None = None
-    items: list[RiskWarningOut]
-
-
-class RiskTrendPointOut(BaseModel):
-    date: str
-    warning_count: int
-
-
-class RiskOverviewOut(BaseModel):
-    rule_version: Literal["risk-v1"] = "risk-v1"
-    timezone: Literal["Asia/Shanghai"] = "Asia/Shanghai"
-    as_of_date: str
-    data_latest_at: datetime | None = None
-    warning_count: int
-    high_open_count: int
-    average_resolution_hours: float | None = None
-    average_resolution_sample_count: int
-    closure_rate: float
-    closure_rate_sample_count: int
-    trend: list[RiskTrendPointOut]

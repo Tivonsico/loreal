@@ -15,7 +15,7 @@ def test_root_page_matches_backend_role(app_pair):
 
         assert service_page.status_code == 200
         assert len(service_page.history) == 1
-        assert str(service_page.url).endswith("/workspace/chat?ui=20260902-2")
+        assert str(service_page.url).endswith("/workspace/chat?ui=20260901-7")
         assert service_page.headers["cache-control"] == "no-store, max-age=0"
         assert service_page.headers["pragma"] == "no-cache"
         assert 'data-page-role="customer_service"' in service_page.text
@@ -31,7 +31,7 @@ def test_frontend_static_assets_and_existing_docs_remain_available(app_pair):
         assert client.get("/docs").status_code == 200
 
 
-def test_customer_service_has_five_direct_workspace_routes(app_pair):
+def test_customer_service_has_four_direct_workspace_routes(app_pair):
     customer_app, customer_service_app = app_pair
     with TestClient(customer_service_app) as client:
         for route, label in {
@@ -39,12 +39,11 @@ def test_customer_service_has_five_direct_workspace_routes(app_pair):
             "/workspace/orders": "订单管理",
             "/workspace/after-sales": "售后管理",
             "/workspace/products": "商品管理",
-            "/workspace/risk": "风险预警跟踪看板",
         }.items():
             page = client.get(route)
             assert page.status_code == 200
             assert len(page.history) == 1
-            assert "ui=20260902-2" in str(page.url)
+            assert "ui=20260901-7" in str(page.url)
             assert page.headers["cache-control"] == "no-store, max-age=0"
             assert page.headers["pragma"] == "no-cache"
             assert label in page.text
@@ -53,7 +52,6 @@ def test_customer_service_has_five_direct_workspace_routes(app_pair):
 
     with TestClient(customer_app) as client:
         assert client.get("/workspace/chat").status_code == 404
-        assert client.get("/workspace/risk").status_code == 404
 
 
 def test_customer_service_uses_versioned_isolated_visual_layer(app_pair):
@@ -66,8 +64,8 @@ def test_customer_service_uses_versioned_isolated_visual_layer(app_pair):
         assert stylesheet.status_code == 200
         assert workspace_script.status_code == 200
         assert stylesheet.headers["content-type"].startswith("text/css")
-        assert "service_workspace_v03.css?v=20260902-2" in page.text
-        assert '<meta name="ui-build" content="20260902-2">' in page.text
+        assert "service_workspace_v03.css?v=20260902-1" in page.text
+        assert '<meta name="ui-build" content="20260901-7">' in page.text
         assert 'const storageKey = "loreal.service.ui-build"' in page.text
         assert 'window.addEventListener("pageshow"' in page.text
         assert "event.persisted" in page.text
@@ -76,17 +74,16 @@ def test_customer_service_uses_versioned_isolated_visual_layer(app_pair):
         assert "订单台账" not in page.text
         assert "工单中心" not in page.text
         assert "商品档案</small>" not in page.text
-        assert "service_workspace.js?v=20260902-2" in page.text
-        assert 'href="/workspace/chat?ui=20260902-2"' in page.text
-        assert 'href="/workspace/orders?ui=20260902-2"' in page.text
-        assert 'href="/workspace/risk?ui=20260902-2"' in page.text
-        assert 'const UI_BUILD = "20260902-2"' in workspace_script.text
+        assert "service_workspace.js?v=20260901-7" in page.text
+        assert 'href="/workspace/chat?ui=20260901-7"' in page.text
+        assert 'href="/workspace/orders?ui=20260901-7"' in page.text
+        assert 'const UI_BUILD = "20260901-7"' in workspace_script.text
         assert 'url.searchParams.set("ui", UI_BUILD)' in workspace_script.text
         assert '<span class="eyebrow">会话</span><h1>会话队列</h1>' not in page.text
         assert '<span class="eyebrow">订单业务</span><h1>订单管理</h1>' not in page.text
         assert '<span class="eyebrow">售后中心</span><h1>售后管理</h1>' not in page.text
         assert '<span class="eyebrow">商品目录</span><h1>商品管理</h1>' not in page.text
-        assert 'from "./api.js?v=20260902-2"' in workspace_script.text
+        assert 'from "./api.js?v=20260811-1"' in workspace_script.text
         assert "L'Oréal Service Atelier v0.3" in stylesheet.text
         assert "font-family: var(--brand-display)" in stylesheet.text
         assert "font-family: var(--brand-mono)" in stylesheet.text
@@ -95,7 +92,7 @@ def test_customer_service_uses_versioned_isolated_visual_layer(app_pair):
         assert "--display: var(--service-font)" in stylesheet.text
         assert "--mono: var(--service-font)" in stylesheet.text
         assert "font-family: var(--service-font)" in stylesheet.text
-        assert stylesheet.text.count("font-size: var(--priority-label-size)") >= 5
+        assert stylesheet.text.count("font-size: var(--priority-label-size)") >= 4
         assert "font-size: var(--section-label-size)" in stylesheet.text
         assert ".service-v03 .atelier-masthead" in stylesheet.text
         assert ".service-v03 .chat-workspace" in stylesheet.text
@@ -106,8 +103,13 @@ def test_customer_service_uses_versioned_isolated_visual_layer(app_pair):
         assert ".service-v03 .context-facts" in stylesheet.text
         assert ".service-v03 .assistance-reply" in stylesheet.text
         assert "overflow-y: scroll; scrollbar-gutter: stable" in stylesheet.text
-        assert "grid-template-columns: 270px minmax(380px, 1fr) 450px" in stylesheet.text
-        assert "font-size: var(--evidence-copy-size); line-height: 1.55" in stylesheet.text
+        assert "grid-template-columns: 270px minmax(380px, 1fr) 410px" in stylesheet.text
+        assert ".service-v03 .context-heading .eyebrow { font-size: 16px; }" in stylesheet.text
+        assert "font-size: 19px; line-height: 1.62" in stylesheet.text
+        assert "font-size: 18px; line-height: 1.62" in stylesheet.text
+        assert ".service-v03 .context-body > :first-child" not in stylesheet.text
+        assert "align-content: start; justify-items: start" in stylesheet.text
+        assert "max-height: 150px" not in stylesheet.text
         assert "background: #fffafb" in stylesheet.text
         assert "font-size: 14px; line-height: 1.7" in stylesheet.text
         assert "font-size: 14px; line-height: 1.7" in stylesheet.text
@@ -117,7 +119,7 @@ def test_customer_service_uses_versioned_isolated_visual_layer(app_pair):
         assert ".service-v03 .context-sections::-webkit-scrollbar-thumb" in stylesheet.text
         assert "grid-template-columns: minmax(0, 1fr); grid-template-rows" in stylesheet.text
         assert "function markAssistanceStale()" in workspace_script.text
-        assert "api.customerInsight(conversationId)" in workspace_script.text
+        assert "api.conversationAssistance(conversationId)" in workspace_script.text
         assert "void runAssistance()" in workspace_script.text
         assert "依据完整聊天" in workspace_script.text
         assert "未配置话术资料，由模型独立判断" in workspace_script.text
@@ -147,12 +149,9 @@ def test_customer_service_shell_preserves_workspace_dom_contract(app_pair):
         'data-workspace-view="orders"',
         'data-workspace-view="after-sales"',
         'data-workspace-view="products"',
-        'data-workspace-view="risk"',
         'id="serviceConversationList"',
         'id="serviceMessages"',
         'id="customerContextCard"',
-        'id="customerPanorama"',
-        'id="customerTrajectory"',
         'id="assistanceCard"',
         'id="assistanceGlance"',
         'id="assistanceReplyPreview"',
@@ -179,176 +178,6 @@ def test_customer_service_shell_preserves_workspace_dom_contract(app_pair):
     assert page.index('id="assistanceReplyPreview"') < page.index('id="openAssistance"')
 
 
-def test_customer_panorama_is_independent_and_preserves_assistance_contract(app_pair):
-    _, customer_service_app = app_pair
-    with TestClient(customer_service_app) as client:
-        page = client.get("/workspace/chat").text
-        workspace_script = client.get("/static/service_workspace.js").text
-        api_script = client.get("/static/api.js").text
-
-    assert page.index('id="customerPanorama"') < page.index(
-        'id="customerTrajectory"'
-    ) < page.index('id="assistanceCard"')
-    for token in (
-        'id="panoramaIdentity"',
-        'id="panoramaCustomerId"',
-        'id="panoramaRegion"',
-        'id="panoramaPaidAmount"',
-        'id="panoramaRisk"',
-        'id="panoramaTags"',
-        'id="panoramaOrderCount"',
-        'id="panoramaAverageOrder"',
-        'id="panoramaConsultationCount"',
-        'id="panoramaAfterSalesCount"',
-        'id="panoramaTrajectoryCount"',
-        'id="panoramaAvatar"',
-        'id="openCustomerProfile"',
-        'id="retryCustomerPanorama"',
-    ):
-        assert token in page
-
-    assert "customerPanorama: (id)" in api_script
-    assert "/api/v1/management/conversations/${encodeURIComponent(id)}/panorama" in api_script
-    assert "panoramaGeneration: 0" in workspace_script
-    assert "function startCustomerPanorama(conversationId)" in workspace_script
-    assert workspace_script.count("++state.panoramaGeneration") == 1
-    assert "api.customerPanorama(conversationId)" in workspace_script
-    assert "journey_insights" in workspace_script
-    assert '<i aria-hidden="true"></i>' not in workspace_script
-    stale_guard = (
-        "state.conversationId !== conversationId || "
-        "generation !== state.panoramaGeneration"
-    )
-    assert workspace_script.count(stale_guard) == 2
-    assert 'data-state="unselected"' in page
-    assert 'dataset.state = "loading"' in workspace_script
-    assert 'dataset.state = isPartial ? "partial" : "ready"' in workspace_script
-    assert 'dataset.state = "error"' in workspace_script
-    assert "用户档案 · 精确客户聚合" in workspace_script
-    assert '$("#retryCustomerPanorama").addEventListener("click"' in workspace_script
-
-    load_start = workspace_script.index("startCustomerPanorama(conversation.id)")
-    promise_start = workspace_script.index("const [messages, context] = await Promise.all([")
-    promise_end = workspace_script.index("]);", promise_start)
-    assert load_start < promise_start
-    assert "customerPanorama" not in workspace_script[promise_start:promise_end]
-    assert "customerInsight: (id)" in api_script
-    assert "/panorama/analysis" in api_script
-    assert workspace_script.count("api.customerInsight(conversationId)") == 1
-    assert "api.conversationAssistance(conversationId)" not in workspace_script
-    for token in (
-        'id="assistanceModeChip"',
-        'id="assistanceInsight"',
-        'id="assistanceIntent"',
-        'id="assistanceConfidence"',
-        'id="assistanceConfidenceTrack"',
-    ):
-        assert token in page
-    assert page.index('id="customerTrajectory"') < page.index(
-        'id="assistanceInsight"'
-    ) < page.index('id="assistanceReplyPreview"')
-    assert "insight.assistance" in workspace_script
-    assert 'insight.mode === "online" ? "在线模型" : "离线分析"' in workspace_script
-
-    assistance_start = page.index('            <section class="assistance-card"')
-    assistance_end = page.index(
-        '            <details class="context-facts"', assistance_start
-    )
-    assistance_markup = page[assistance_start:assistance_end]
-    assert "AI 分析" in assistance_markup
-    assert "用户意图" in assistance_markup
-    assert "情绪判断" not in assistance_markup
-    assert "建议回复 · 发送前请确认" in assistance_markup
-
-    function_start = workspace_script.index("function resetAssistance()")
-    function_end = workspace_script.index("function conversationRow(", function_start)
-    assistance_functions = workspace_script[function_start:function_end]
-    assert assistance_functions.count("api.customerInsight(conversationId)") == 1
-    assert "showAssistanceDetails" in assistance_functions
-    assert "useAssistanceReply" in assistance_functions
-    assert "markAssistanceStale" in assistance_functions
-
-
-def test_risk_workspace_has_independent_functional_data_flow(app_pair):
-    _, customer_service_app = app_pair
-    with TestClient(customer_service_app) as client:
-        page = client.get("/workspace/risk").text
-        workspace_script = client.get("/static/service_workspace.js").text
-        api_script = client.get("/static/api.js").text
-        workspace_css = client.get("/static/service_workspace_v03.css").text
-
-    for token in (
-        'data-workspace-link="risk"',
-        'data-workspace-view="risk"',
-        'id="navRiskCount"',
-        'id="riskOverviewState"',
-        'id="riskMetrics"',
-        'id="riskTrend"',
-        'id="riskKindFilters"',
-        'data-risk-kind="emotion_escalation"',
-        'data-risk-kind="repeat_contact"',
-        'data-risk-kind="repeat_refund"',
-        'data-risk-kind="public_complaint"',
-        'data-risk-kind="service_timeout"',
-        'id="riskTotal"',
-        'id="riskTableBody"',
-        'id="riskPagination"',
-        'id="riskPrevPage"',
-        'id="riskNextPage"',
-        'href="/workspace/chat?ui=20260902-2"',
-    ):
-        assert token in page
-
-    assert 'aria-pressed="true"' in page
-    assert 'aria-pressed="false"' in page
-    assert "riskOverview: (params = {})" in api_script
-    assert "riskWarnings: (params = {})" in api_script
-    assert "riskWarning: (id)" in api_script
-    assert "/api/v1/management/risks/overview" in api_script
-    assert "/api/v1/management/risks${queryString(params)}" in api_script
-    assert "/api/v1/management/risks/${encodeURIComponent(id)}" in api_script
-
-    for token in (
-        "function loadRiskOverview()",
-        "function loadRiskWarnings()",
-        "function openRiskWarning(id)",
-        "void loadRiskOverview()",
-        "void loadRiskWarnings()",
-        "api.riskOverview()",
-        "api.riskWarnings({",
-        "api.riskWarning(id)",
-        'id="riskOverviewRetry"',
-        "renderTableError($(\"#riskTableBody\"), 7, error, loadRiskWarnings)",
-        'item.setAttribute("aria-pressed", String(isActive))',
-        'data-risk-detail="${escapeHtml(risk.id)}"',
-        "riskListGeneration: 0",
-        "const generation = ++state.riskListGeneration",
-        "generation !== state.riskListGeneration",
-        'openDrawer(`',
-        '"risk", id',
-        "返回相关会话",
-    ):
-        assert token in workspace_script
-
-    assert "result.warning_count" in workspace_script
-    assert "result.high_open_count" in workspace_script
-    assert "result.average_resolution_hours" in workspace_script
-    assert "result.closure_rate" in workspace_script
-    assert "Promise.all([loadRiskOverview" not in workspace_script
-    trend_a11y = (
-        'role="img" aria-label="${escapeHtml(point.date)}，'
-        '${point.warning_count} 条预警"'
-    )
-    assert trend_a11y in workspace_script
-    assert ".risk-workspace:not([hidden])" in workspace_css
-    assert ".risk-table tbody tr { cursor: default; }" in workspace_css
-    assert ".customer-panorama::before" in workspace_css
-    assert ".context-body > :first-child { min-height: 0; }" in workspace_css
-    assert "@media (prefers-reduced-motion: reduce)" in workspace_css
-    assert 'id="assistanceCard"' in page
-    assert page.count('id="assistanceCard"') == 1
-
-
 def test_frontends_localize_operational_labels_and_work_order_fields(app_pair):
     customer_app, customer_service_app = app_pair
     with TestClient(customer_service_app) as client:
@@ -359,7 +188,7 @@ def test_frontends_localize_operational_labels_and_work_order_fields(app_pair):
         customer_page = client.get("/").text
         customer_script = client.get("/static/customer.js").text
 
-    assert "service_workspace.js?v=20260902-2" in service_page
+    assert "service_workspace.js?v=20260901-7" in service_page
     assert "customer.js?v=20260810-2" in customer_page
     assert 'from "./chat.js?v=20260810-1"' in service_script
     assert 'from "./chat.js?v=20260810-1"' in customer_script
@@ -469,9 +298,9 @@ def test_customer_and_service_share_atelier_visual_contract(app_pair):
 
     assert "styles.css?v=20260901-6" in customer_page
     assert "styles.css?v=20260901-6" in service_page
-    assert "service_workspace_v03.css?v=20260902-2" in service_page
+    assert "service_workspace_v03.css?v=20260902-1" in service_page
     assert service_page.index("styles.css?v=20260901-6") < service_page.index(
-        "service_workspace_v03.css?v=20260902-2"
+        "service_workspace_v03.css?v=20260902-1"
     )
 
     assert "grid-template-columns: 270px minmax(380px, 1fr) 410px" in shared_css

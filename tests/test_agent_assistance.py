@@ -113,7 +113,7 @@ def test_default_registry_is_explicit_registered_and_frozen() -> None:
 
     assert registry.names() == (ASSISTANCE_AGENT_NAME,)
     assert registry.frozen is True
-    assert registry.get(ASSISTANCE_AGENT_NAME).version == "1.4"
+    assert registry.get(ASSISTANCE_AGENT_NAME).version == "1.3"
 
     try:
         registry.register(CustomerServiceAssistanceAgent())
@@ -145,7 +145,6 @@ def test_assistance_agent_uses_valid_online_provider_and_degrades_safely() -> No
                 summary="客户希望确认送达时间。",
                 service_handling="客服正在核对关联订单和物流记录。",
                 current_status="等待补充订单信息后继续处理。",
-                sentiment="calm",
                 urgency="medium",
                 risks=["订单尚未关联"],
                 next_actions=["先确认订单号"],
@@ -162,12 +161,8 @@ def test_assistance_agent_uses_valid_online_provider_and_degrades_safely() -> No
 
     assert online.mode == "online"
     assert online.intent == "物流查询"
-    assert 0 <= online.sentiment_confidence <= 1
-    assert online.sentiment_reason
     assert online.degraded_reason is None
     assert degraded.mode == "offline"
-    assert 0 <= degraded.sentiment_confidence <= 1
-    assert degraded.sentiment_reason
     assert degraded.degraded_reason == "在线模型暂时不可用，已使用完整会话离线分析"
 
 
@@ -239,7 +234,6 @@ def test_offline_fallback_uses_complete_chat_and_recognizes_resolved_acknowledge
                 summary="退款问题已经说明。",
                 service_handling="客服已经提交退款申请。",
                 current_status="等待退款到账。",
-                sentiment="calm",
                 urgency="normal",
                 risks=[],
                 next_actions=["跟进到账结果"],
@@ -269,7 +263,6 @@ def test_model_prompt_requires_complete_transcript_and_handbook_is_optional(monk
                 "summary": "客户在等退款到账。客服祝客户生活愉快。",
                 "service_handling": "客服已核验退款记录并告知预计到账时间。最后祝客户生活愉快。",
                 "current_status": "等待退款到账，客户表示感谢",
-                "sentiment": "平静",
                 "urgency": "一般",
                 "risks": "无额外风险",
                 "next_actions": "礼貌收尾，不要重复追问",
@@ -331,7 +324,6 @@ def test_model_prompt_requires_complete_transcript_and_handbook_is_optional(monk
     assert "reasoning_effort" not in captured["payload"]
     assert "max_tokens" not in captured["payload"]
     assert advice.suggested_reply.startswith("好的")
-    assert advice.sentiment == "calm"
     assert advice.urgency == "normal"
     assert advice.next_actions == ["礼貌收尾，不要重复追问"]
     assert advice.intent == "客户想确认退款进度"

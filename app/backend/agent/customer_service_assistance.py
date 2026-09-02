@@ -3,11 +3,7 @@ from __future__ import annotations
 from typing import Any, Protocol
 
 from app.backend.agent.openai_compatible_provider import OpenAICompatibleProviderError
-from app.backend.schemas import (
-    AssistanceAnalysisOut,
-    AssistanceFactOut,
-    AssistanceJourneyInsightOut,
-)
+from app.backend.schemas import AssistanceAnalysisOut, AssistanceFactOut
 
 
 class AdviceProvider(Protocol):
@@ -16,7 +12,7 @@ class AdviceProvider(Protocol):
 
 class CustomerServiceAssistanceAgent:
     name = "customer_service_assistance"
-    version = "1.4"
+    version = "1.3"
 
     def __init__(self, provider: AdviceProvider | None = None) -> None:
         self._provider = provider
@@ -35,23 +31,6 @@ class CustomerServiceAssistanceAgent:
             return offline.model_copy(
                 update={"degraded_reason": "在线模型暂时不可用，已使用完整会话离线分析"}
             )
-        model_insight_keys = {
-            (item.kind, item.source_type, item.source_id) for item in advice.journey_insights
-        }
-        journey_insights = [
-            AssistanceJourneyInsightOut(
-                kind=item.kind,
-                source_type=item.source_type,
-                source_id=item.source_id,
-                summary=item.summary,
-            )
-            for item in advice.journey_insights
-        ]
-        journey_insights.extend(
-            item
-            for item in offline.journey_insights
-            if (item.kind, item.source_type, item.source_id) not in model_insight_keys
-        )
         return offline.model_copy(
             update={
                 "mode": "online",
@@ -59,15 +38,11 @@ class CustomerServiceAssistanceAgent:
                 "summary": advice.summary,
                 "service_handling": advice.service_handling,
                 "current_status": advice.current_status,
-                "sentiment": advice.sentiment,
-                "sentiment_confidence": advice.sentiment_confidence,
-                "sentiment_reason": advice.sentiment_reason,
                 "urgency": advice.urgency,
                 "risks": advice.risks,
                 "next_actions": advice.next_actions,
                 "suggested_reply": advice.suggested_reply,
                 "evidence_message_ids": advice.evidence_message_ids,
-                "journey_insights": journey_insights[:4],
                 "degraded_reason": None,
             }
         )
@@ -88,31 +63,6 @@ class CustomerServiceAssistanceAgent:
         combined = " ".join(item["content"] for item in customer_messages)
         intent, urgency = self._classify(combined)
         intent = self._complete_intent(intent, combined, context)
-        concern_terms = (
-            "急",
-            "投诉",
-            "生气",
-            "不舒服",
-            "过敏",
-            "红肿",
-            "刺痛",
-            "别想赖",
-            "赶紧",
-            "太慢",
-        )
-        matched_concerns = [term for term in concern_terms if term in combined]
-        is_concerned = bool(matched_concerns)
-        sentiment = "concerned" if is_concerned else "calm"
-        sentiment_confidence = min(
-            0.94,
-            (0.82 if customer_messages else 0.62) + min(len(matched_concerns), 3) * 0.04,
-        )
-        sentiment_reason = (
-            f"完整会话中出现“{'、'.join(matched_concerns[:3])}”等关注表达。"
-            if matched_concerns
-            else "完整会话中没有持续的激烈或不适表达，当前沟通趋于平稳。"
-        )
-
         facts = [
             self._fact("订单", context["order"]),
             self._fact("商品", context["product"]),
@@ -132,9 +82,6 @@ class CustomerServiceAssistanceAgent:
         current_status = self._current_status(context, acknowledged)
         next_actions = self._next_actions(intent, context, acknowledged)
         reply = self._suggested_reply(issue_message, intent, context, acknowledged)
-        journey_insights = self._offline_journey_insights(
-            context, intent, service_handling, current_status
-        )
         return AssistanceAnalysisOut(
             agent_name=self.name,
             agent_version=self.version,
@@ -147,45 +94,16 @@ class CustomerServiceAssistanceAgent:
             summary=self._summary(intent, context, acknowledged),
             service_handling=service_handling,
             current_status=current_status,
-            sentiment=sentiment,
-            sentiment_confidence=sentiment_confidence,
-            sentiment_reason=sentiment_reason,
             urgency=urgency,
             facts=facts,
             risks=risks,
             next_actions=next_actions,
             suggested_reply=reply,
             evidence_message_ids=[item["id"] for item in customer_messages[-3:]],
-            journey_insights=journey_insights,
             playbook_status=context["reply_handbook"]["status"],
             degraded_reason=None,
         )
 
-    @staticmethod
-    def _offline_journey_insights(
-        context: dict[str, Any], intent: str, service_handling: str, current_status: str
-    ) -> list[AssistanceJourneyInsightOut]:
-        summaries = {
-            "order_created": lambda node: f"客户下单购买{node.get('detail') or '关联商品'}，形成后续服务记录。",
-            "consultation": lambda node: f"客户发起咨询，主要围绕{intent}展开，客服开始接待处理。",
-            "work_order_opened": lambda node: f"已创建{node.get('detail') or '售后工单'}，客服据此跟进客户诉求。",
-            "work_order_closed": lambda node: f"售后节点已完成，{node.get('detail') or current_status}。",
-            "work_order_status": lambda node: f"售后处理进度更新：{node.get('detail') or current_status}。",
-        }
-        result: list[AssistanceJourneyInsightOut] = []
-        for node in context.get("customer_journey", []):
-            kind = node.get("kind", "")
-            source = node.get("source_ref") or {}
-            summary = summaries.get(kind, lambda _: service_handling)(node)
-            result.append(
-                AssistanceJourneyInsightOut(
-                    kind=kind,
-                    source_type=source.get("source_type", "conversation"),
-                    source_id=str(source.get("source_id", "unknown")),
-                    summary=summary[:160],
-                )
-            )
-        return result[:4]
 
     @staticmethod
     def _is_acknowledgement(content: str) -> bool:

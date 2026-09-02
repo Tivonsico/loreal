@@ -14,12 +14,10 @@ from app.backend.agent import create_agent_registry
 from app.backend.api import (
     catalog,
     conversations,
-    customer_panorama,
     imports,
     management,
     messages,
     public,
-    risks,
     websocket,
     work_orders,
 )
@@ -27,7 +25,7 @@ from app.backend.config import Settings
 from app.backend.db import create_database, upgrade_database
 from app.backend.realtime import RealtimeManager
 
-SERVICE_UI_BUILD = "20260902-2"
+SERVICE_UI_BUILD = "20260901-7"
 HTML_NO_CACHE_HEADERS = {"Cache-Control": "no-store, max-age=0", "Pragma": "no-cache"}
 
 
@@ -87,8 +85,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(messages.router)
     app.include_router(imports.router)
     app.include_router(management.router)
-    app.include_router(customer_panorama.router)
-    app.include_router(risks.router)
     app.include_router(work_orders.router)
     app.include_router(public.router)
     app.include_router(websocket.router)
@@ -117,7 +113,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "orders",
             "after-sales",
             "products",
-            "risk",
         }:
             raise HTTPException(status_code=404, detail="页面不存在")
         if request.query_params.get("ui") != SERVICE_UI_BUILD:
