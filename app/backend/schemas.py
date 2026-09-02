@@ -307,6 +307,9 @@ class AssistanceFactOut(BaseModel):
     summary: str
 
 
+EmotionLabel = Literal["positive", "neutral", "anxious", "angry", "sad"]
+
+
 class AssistanceAnalysisOut(BaseModel):
     agent_name: str
     agent_version: str
@@ -327,9 +330,12 @@ class AssistanceAnalysisOut(BaseModel):
     evidence_message_ids: list[int]
     playbook_status: Literal["source_unavailable", "no_match", "present", "truncated"]
     degraded_reason: str | None = None
+    emotion: EmotionLabel = "neutral"
+    emotion_confidence: float = Field(default=0.5, ge=0, le=1)
+    customer_tags: list[str] = Field(default_factory=list, max_length=4)
+    trail_summaries: list[str] = Field(default_factory=list, max_length=4)
 
 
-EmotionLabel = Literal["positive", "neutral", "anxious", "angry", "sad"]
 EmotionRiskType = Literal[
     "none", "emotion_escalation", "repeat_contact", "repeat_refund", "complaint"
 ]
@@ -357,6 +363,59 @@ class EmotionAnalysisRunOut(BaseModel):
     created_at: datetime
     started_at: datetime | None = None
     finished_at: datetime | None = None
+
+
+class SourceReferenceOut(BaseModel):
+    source_type: Literal["conversation", "message", "order", "work_order", "status_log"]
+    source_id: str
+
+
+class ServiceTrailNodeOut(BaseModel):
+    kind: Literal["order_created", "consultation", "work_order_opened", "work_order_closed"]
+    occurred_at: datetime
+    title: str
+    detail: str | None = None
+    source_ref: SourceReferenceOut
+
+
+class CustomerPanoramaOut(BaseModel):
+    conversation_id: str
+    customer_id: str
+    buyer_nickname: str | None = None
+    region: str | None = None
+    recorded_paid_amount: Decimal
+    order_count: int = Field(ge=0)
+    consultation_count_30d: int = Field(ge=0)
+    after_sales_count: int = Field(ge=0)
+    latest_order_at: datetime | None = None
+    fact_tags: list[str] = Field(default_factory=list, max_length=4)
+    service_trail: list[ServiceTrailNodeOut] = Field(default_factory=list, max_length=4)
+
+
+class EmotionTrendPointOut(BaseModel):
+    date: str
+    warning_count: int = Field(ge=0)
+
+
+class EmotionDashboardOut(BaseModel):
+    warning_count: int = Field(ge=0)
+    high_risk_count: int = Field(ge=0)
+    analyzed_count: int = Field(ge=0)
+    failure_count: int = Field(ge=0)
+    closure_rate: float = Field(ge=0, le=1)
+    trend: list[EmotionTrendPointOut]
+
+
+class EmotionAnalysisListItemOut(EmotionAnalysisResultOut):
+    buyer_nickname: str | None = None
+    updated_at: datetime
+    analyzed_at: datetime | None = None
+    status: str
+    assignee: str | None = None
+
+
+class EmotionAnalysisPageOut(PageMeta):
+    items: list[EmotionAnalysisListItemOut]
 
 
 class MessageSearchItem(MessageOut):

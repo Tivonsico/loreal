@@ -43,6 +43,10 @@ class CustomerServiceAssistanceAgent:
                 "next_actions": advice.next_actions,
                 "suggested_reply": advice.suggested_reply,
                 "evidence_message_ids": advice.evidence_message_ids,
+                "emotion": advice.emotion,
+                "emotion_confidence": advice.emotion_confidence,
+                "customer_tags": advice.customer_tags,
+                "trail_summaries": advice.trail_summaries,
                 "degraded_reason": None,
             }
         )
@@ -62,6 +66,7 @@ class CustomerServiceAssistanceAgent:
         )
         combined = " ".join(item["content"] for item in customer_messages)
         intent, urgency = self._classify(combined)
+        emotion, emotion_confidence = self._emotion(combined, acknowledged)
         intent = self._complete_intent(intent, combined, context)
         facts = [
             self._fact("订单", context["order"]),
@@ -102,6 +107,10 @@ class CustomerServiceAssistanceAgent:
             evidence_message_ids=[item["id"] for item in customer_messages[-3:]],
             playbook_status=context["reply_handbook"]["status"],
             degraded_reason=None,
+            emotion=emotion,
+            emotion_confidence=emotion_confidence,
+            customer_tags=self._customer_tags(combined),
+            trail_summaries=[service_handling, current_status],
         )
 
 
@@ -127,6 +136,31 @@ class CustomerServiceAssistanceAgent:
         if any(key in content for key in ("怎么用", "适合", "成分", "商品")):
             return "商品使用咨询", "normal"
         return "一般服务咨询", "normal"
+
+    @staticmethod
+    def _emotion(content: str, acknowledged: bool) -> tuple[str, float]:
+        if acknowledged:
+            return "positive", 0.78
+        if any(key in content for key in ("生气", "气死", "投诉", "太差")):
+            return "angry", 0.86
+        if any(key in content for key in ("焦虑", "担心", "着急", "怎么还", "一直没")):
+            return "anxious", 0.8
+        if any(key in content for key in ("难过", "失望", "伤心")):
+            return "sad", 0.8
+        return "neutral", 0.68
+
+    @staticmethod
+    def _customer_tags(content: str) -> list[str]:
+        tags = []
+        for terms, label in (
+            (("过敏", "敏感肌", "刺痛", "红肿"), "敏感肌关注"),
+            (("成分", "怎么用", "适合"), "关注成分功效"),
+            (("又买", "回购", "一直用"), "复购倾向"),
+            (("退款", "退货", "换货"), "关注售后效率"),
+        ):
+            if any(term in content for term in terms):
+                tags.append(label)
+        return tags[:4]
 
     @staticmethod
     def _complete_intent(

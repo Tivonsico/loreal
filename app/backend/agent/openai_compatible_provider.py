@@ -28,6 +28,10 @@ class ModelAdvice(BaseModel):
     next_actions: list[str] = Field(min_length=1, max_length=5)
     suggested_reply: str = Field(min_length=1, max_length=2000)
     evidence_message_ids: list[int] = Field(max_length=5)
+    emotion: Literal["positive", "neutral", "anxious", "angry", "sad"] = "neutral"
+    emotion_confidence: float = Field(default=0.5, ge=0, le=1)
+    customer_tags: list[str] = Field(default_factory=list, max_length=4)
+    trail_summaries: list[str] = Field(default_factory=list, max_length=4)
 
 
 class EmotionBatchAdvice(BaseModel):
@@ -92,8 +96,11 @@ class OpenAICompatibleChatProvider:
             "即使无需追问也不能留空。"
             "输出一个 JSON 对象，只能包含 intent、summary、service_handling、current_status、"
             "urgency、risks、next_actions、"
-            "suggested_reply、evidence_message_ids。"
+            "suggested_reply、evidence_message_ids、emotion、emotion_confidence、"
+            "customer_tags、trail_summaries。"
             "urgency 只能是 normal、medium 或 high。evidence_message_ids 只能引用输入消息 ID。"
+            "emotion 只能是 positive、neutral、anxious、angry、sad；"
+            "customer_tags 是最多4个简短消费或服务偏好标签；trail_summaries 最多4条。"
         )
         few_shot_messages = self._few_shot_messages()
         payload: dict[str, Any] = {
@@ -111,12 +118,7 @@ class OpenAICompatibleChatProvider:
         }
         if self._json_mode:
             payload["response_format"] = {"type": "json_object"}
-        if self._is_bigmodel:
-            # New GLM models always think. Keep reasoning light for this bounded
-            # JSON extraction so the response stays inside the request timeout.
-            payload["thinking"] = {"type": "enabled"}
-            payload["reasoning_effort"] = "low"
-            payload["max_tokens"] = 1200
+        self._apply_assistance_reasoning(payload)
         body = self._send_payload(payload, optional_reasoning_fallback=self._is_bigmodel)
         try:
             completion = json.loads(body)
@@ -214,6 +216,18 @@ class OpenAICompatibleChatProvider:
             payload["max_tokens"] = 1800
         elif mode in {"minimal", "low"}:
             payload["reasoning_effort"] = mode
+
+    def _apply_assistance_reasoning(self, payload: dict[str, Any]) -> None:
+        """Apply only endpoint capabilities known for the configured provider."""
+        if not self._is_bigmodel:
+            return
+        mode = self._reasoning_mode
+        if mode == "disabled":
+            payload["thinking"] = {"type": "disabled"}
+        else:
+            payload["thinking"] = {"type": "enabled"}
+            payload["reasoning_effort"] = "low" if mode == "auto" else mode
+        payload["max_tokens"] = 1200
 
     @staticmethod
     def _safe_emotion_input(context: dict[str, Any]) -> dict[str, Any]:
@@ -398,6 +412,15 @@ class OpenAICompatibleChatProvider:
                 data[field] = [data[field]]
             if isinstance(data.get(field), list):
                 data[field] = data[field][:5]
+        for field in ("customer_tags", "trail_summaries"):
+            if isinstance(data.get(field), str):
+                data[field] = [data[field]]
+            if isinstance(data.get(field), list):
+                data[field] = [
+                    str(item).strip()[:80]
+                    for item in data[field][:4]
+                    if str(item).strip()
+                ]
         if isinstance(data.get("evidence_message_ids"), list):
             data["evidence_message_ids"] = [
                 int(item)

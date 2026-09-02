@@ -11,9 +11,12 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from app.backend.agent import create_agent_registry
+from app.backend.agent.openai_compatible_provider import OpenAICompatibleChatProvider
 from app.backend.api import (
     catalog,
     conversations,
+    customer_panorama,
+    emotion_analysis,
     imports,
     management,
     messages,
@@ -70,6 +73,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         model=settings.llm_model,
         timeout_seconds=settings.llm_timeout_seconds,
         json_mode=settings.llm_json_mode,
+        reasoning_mode=settings.llm_reasoning_mode,
+    )
+    app.state.emotion_provider = (
+        OpenAICompatibleChatProvider(
+            settings.llm_api_key,
+            settings.llm_base_url,
+            settings.llm_model,
+            settings.llm_timeout_seconds,
+            settings.llm_json_mode,
+            settings.llm_reasoning_mode,
+        )
+        if settings.llm_api_key
+        else None
     )
     app.add_middleware(
         CORSMiddleware,
@@ -85,6 +101,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(messages.router)
     app.include_router(imports.router)
     app.include_router(management.router)
+    app.include_router(customer_panorama.router)
+    app.include_router(emotion_analysis.router)
     app.include_router(work_orders.router)
     app.include_router(public.router)
     app.include_router(websocket.router)
@@ -113,6 +131,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "orders",
             "after-sales",
             "products",
+            "risk",
         }:
             raise HTTPException(status_code=404, detail="页面不存在")
         if request.query_params.get("ui") != SERVICE_UI_BUILD:

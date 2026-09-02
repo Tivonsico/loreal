@@ -318,6 +318,8 @@ def test_assistance_agent_uses_valid_online_provider_and_degrades_safely() -> No
 
     assert online.mode == "online"
     assert online.intent == "物流查询"
+    assert online.emotion == "neutral"
+    assert online.emotion_confidence == 0.5
     assert online.degraded_reason is None
     assert degraded.mode == "offline"
     assert degraded.degraded_reason == "在线模型暂时不可用，已使用完整会话离线分析"
@@ -433,6 +435,7 @@ def test_model_prompt_requires_complete_transcript_and_handbook_is_optional(monk
     def fake_urlopen(request, timeout):
         captured["timeout"] = timeout
         captured["payload"] = json.loads(request.data)
+        captured.setdefault("payloads", []).append(captured["payload"])
         return Response()
 
     monkeypatch.setattr("app.backend.agent.openai_compatible_provider.urlopen", fake_urlopen)
@@ -450,6 +453,7 @@ def test_model_prompt_requires_complete_transcript_and_handbook_is_optional(monk
     advice = OpenAICompatibleChatProvider(
         "test-key", "https://example.test/v1", "test-model", 5
     ).generate(context)
+    assert len(captured["payloads"]) == 1
 
     prompt = captured["payload"]["messages"]
     assert all(
@@ -524,6 +528,28 @@ def test_model_prompt_requires_complete_transcript_and_handbook_is_optional(monk
     assert captured["payload"]["reasoning_effort"] == "low"
     assert captured["payload"]["max_tokens"] == 1200
 
+    OpenAICompatibleChatProvider(
+        "test-key",
+        "https://open.bigmodel.cn/api/paas/v4",
+        "glm-5.3-flash",
+        5,
+        reasoning_mode="disabled",
+    ).generate(context)
+    assert captured["payload"]["thinking"] == {"type": "disabled"}
+    assert "reasoning_effort" not in captured["payload"]
+    assert captured["payload"]["max_tokens"] == 1200
+
+    OpenAICompatibleChatProvider(
+        "test-key",
+        "https://open.bigmodel.cn/api/paas/v4",
+        "glm-5.3-flash",
+        5,
+        reasoning_mode="minimal",
+    ).generate(context)
+    assert captured["payload"]["thinking"] == {"type": "enabled"}
+    assert captured["payload"]["reasoning_effort"] == "minimal"
+    assert len(captured["payloads"]) == 5
+
 
 def test_service_assistance_verifies_facts_without_writing_database(app_pair) -> None:
     customer_app, service_app = app_pair
@@ -544,6 +570,10 @@ def test_service_assistance_verifies_facts_without_writing_database(app_pair) ->
         assert body["evidence_message_ids"]
         assert body["service_handling"]
         assert body["current_status"]
+        assert body["emotion"] in {"positive", "neutral", "anxious", "angry", "sad"}
+        assert 0 <= body["emotion_confidence"] <= 1
+        assert len(body["customer_tags"]) <= 4
+        assert len(body["trail_summaries"]) <= 4
         assert "SF123456" in body["suggested_reply"]
         facts = {item["label"]: item for item in body["facts"]}
         assert facts["订单"]["status"] == "present"
