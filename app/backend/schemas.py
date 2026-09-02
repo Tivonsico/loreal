@@ -1,0 +1,536 @@
+from __future__ import annotations
+
+from datetime import datetime
+from decimal import Decimal
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+Role = Literal["customer", "customer_service", "system"]
+MessageType = Literal["text", "image", "audio", "video", "file"]
+
+
+class ORMModel(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ConversationCreate(BaseModel):
+    customer_id: str = Field(min_length=1, max_length=100)
+    title: str | None = Field(default=None, max_length=200)
+
+
+class ConversationOut(ORMModel):
+    id: str
+    source_external_id: str | None = None
+    customer_id: str
+    buyer_nickname: str | None = None
+    title: str | None
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class ProductInput(BaseModel):
+    external_id: str = Field(min_length=1, max_length=100)
+    sku: str | None = Field(default=None, max_length=100)
+    name: str = Field(min_length=1, max_length=300)
+    brand: str | None = Field(default=None, max_length=200)
+    description: str | None = None
+    price: Decimal | None = Field(default=None, ge=0)
+    extra: dict[str, Any] = Field(default_factory=dict)
+
+
+class ProductOut(ORMModel):
+    id: int
+    external_id: str
+    sku: str | None
+    name: str
+    brand: str | None
+    description: str | None
+    price: Decimal | None
+    extra: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+
+
+class OrderInput(BaseModel):
+    external_id: str = Field(min_length=1, max_length=100)
+    customer_id: str = Field(min_length=1, max_length=100)
+    buyer_nickname: str | None = Field(default=None, max_length=100)
+    product_external_id: str | None = Field(default=None, max_length=100)
+    conversation_id: str | None = None
+    status: str = Field(default="unknown", min_length=1, max_length=50)
+    quantity: int = Field(default=1, ge=1)
+    total_amount: Decimal | None = Field(default=None, ge=0)
+    unit_price: Decimal | None = Field(default=None, ge=0)
+    product_name: str | None = Field(default=None, max_length=300)
+    logistics_company: str | None = Field(default=None, max_length=100)
+    logistics_no: str | None = Field(default=None, max_length=100)
+    ordered_at: datetime | None = None
+    paid_at: datetime | None = None
+    payment_stage: str | None = Field(default=None, max_length=30)
+    shipped_at: datetime | None = None
+    extra: dict[str, Any] = Field(default_factory=dict)
+
+
+class OrderOut(ORMModel):
+    id: int
+    external_id: str
+    customer_id: str
+    buyer_nickname: str | None = None
+    product_external_id: str | None
+    conversation_id: str | None
+    status: str
+    quantity: int
+    total_amount: Decimal | None
+    unit_price: Decimal | None = None
+    product_name: str | None = None
+    logistics_company: str | None = None
+    logistics_no: str | None = None
+    ordered_at: datetime | None = None
+    paid_at: datetime | None = None
+    payment_stage: str | None = None
+    shipped_at: datetime | None = None
+    extra: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+
+
+class ImportProductsRequest(BaseModel):
+    items: list[ProductInput] = Field(min_length=1, max_length=5000)
+
+
+class ImportOrdersRequest(BaseModel):
+    items: list[OrderInput] = Field(min_length=1, max_length=5000)
+
+
+class ImportResult(BaseModel):
+    created: int
+    updated: int
+
+
+class TextMessageCreate(BaseModel):
+    content: str = Field(min_length=1, max_length=20000)
+
+    @model_validator(mode="after")
+    def reject_whitespace_only(self) -> TextMessageCreate:
+        self.content = self.content.strip()
+        if not self.content:
+            raise ValueError("消息正文不能为空")
+        return self
+
+
+class MessageOut(ORMModel):
+    id: int
+    source_external_id: str | None = None
+    conversation_id: str
+    sender_role: Role
+    sequence_no: int | None = None
+    message_type: MessageType
+    content: str | None
+    raw_content: str | None = None
+    related_order_external_id: str | None = None
+    related_work_order_external_id: str | None = None
+    media_url: str | None
+    original_filename: str | None
+    mime_type: str | None
+    size_bytes: int | None
+    created_at: datetime
+
+
+class MessagePage(BaseModel):
+    items: list[MessageOut]
+    next_before_id: int | None
+
+
+WorkOrderType = Literal[
+    "replacement_exchange",
+    "offline_payment",
+    "logistics",
+    "adverse_reaction",
+    "after_sale_return",
+]
+WorkOrderStatus = Literal["pending", "processing", "completed"]
+
+
+class WorkOrderBase(BaseModel):
+    external_id: str = Field(min_length=1, max_length=100)
+    ticket_type: WorkOrderType
+    conversation_id: str | None = None
+    order_external_id: str | None = Field(default=None, max_length=100)
+    customer_id: str | None = Field(default=None, max_length=100)
+    buyer_nickname: str | None = Field(default=None, max_length=100)
+    status: WorkOrderStatus = "pending"
+    source_status: str | None = Field(default=None, max_length=50)
+    assignee: str | None = Field(default=None, max_length=100)
+    description: str | None = None
+    resolution: str | None = None
+    opened_at: datetime | None = None
+    closed_at: datetime | None = None
+    source_extra: dict[str, Any] = Field(default_factory=dict)
+
+
+class WorkOrderOut(WorkOrderBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class WorkOrderStatusUpdate(BaseModel):
+    status: WorkOrderStatus
+    note: str = Field(min_length=1, max_length=2000)
+
+
+class PublicAfterSalesOut(BaseModel):
+    external_id: str
+    ticket_type: WorkOrderType
+    status: WorkOrderStatus
+    updated_at: datetime
+    replacement_tracking_no: str | None = None
+    confirmed_payment_amount: Decimal | None = None
+    confirmed_payment_status: str | None = None
+
+
+class WorkbookImportError(BaseModel):
+    sheet_name: str
+    row_number: int
+    column_name: str | None = None
+    error_code: str
+    message: str
+
+
+class WorkbookPreviewOut(BaseModel):
+    batch_id: str
+    filename: str
+    file_sha256: str
+    status: Literal["ready", "invalid", "committed"]
+    can_commit: bool
+    sheets: dict[str, int]
+    work_order_types: dict[str, int]
+    error_count: int
+    errors: list[WorkbookImportError]
+
+
+class WorkbookCommitOut(BaseModel):
+    batch_id: str
+    status: Literal["committed"]
+    created: dict[str, int]
+    committed_at: datetime
+
+
+class PageMeta(BaseModel):
+    page: int
+    page_size: int
+    total: int
+
+
+class ManagementOrderOut(OrderOut):
+    work_order_external_id: str | None = None
+
+
+class ManagementOrderPage(PageMeta):
+    items: list[ManagementOrderOut]
+
+
+class OrderUpdate(BaseModel):
+    status: str | None = Field(default=None, min_length=1, max_length=50)
+    logistics_company: str | None = Field(default=None, max_length=100)
+    logistics_no: str | None = Field(default=None, max_length=100)
+
+
+class ManagementProductPage(PageMeta):
+    items: list[ProductOut]
+
+
+class ProductUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=300)
+    brand: str | None = Field(default=None, max_length=200)
+    description: str | None = None
+    price: Decimal | None = Field(default=None, ge=0)
+
+
+class WorkOrderStatusLogOut(ORMModel):
+    id: int
+    from_status: str | None
+    to_status: str
+    note: str | None
+    actor: str | None
+    created_at: datetime
+
+
+class WorkOrderDetailOut(WorkOrderOut):
+    detail: dict[str, Any] = Field(default_factory=dict)
+    status_logs: list[WorkOrderStatusLogOut] = Field(default_factory=list)
+
+
+class WorkOrderCreate(WorkOrderBase):
+    detail: dict[str, Any] = Field(default_factory=dict)
+
+
+class WorkOrderPage(PageMeta):
+    items: list[WorkOrderDetailOut]
+
+
+class ConversationManagementOut(ConversationOut):
+    order_external_id: str | None = None
+    work_order_external_id: str | None = None
+    work_order_type: WorkOrderType | None = None
+    work_order_status: WorkOrderStatus | None = None
+
+
+class ConversationManagementPage(PageMeta):
+    items: list[ConversationManagementOut]
+
+
+class ConversationContextOut(BaseModel):
+    conversation: ConversationOut
+    order: ManagementOrderOut | None = None
+    product: ProductOut | None = None
+    work_order: WorkOrderDetailOut | None = None
+
+
+AssistanceFactStatus = Literal[
+    "present",
+    "not_linked",
+    "referenced_not_found",
+    "conflict",
+    "filtered",
+    "source_unavailable",
+]
+
+
+class AssistanceFactOut(BaseModel):
+    label: str
+    status: AssistanceFactStatus
+    summary: str
+
+
+class AssistanceJourneyInsightOut(BaseModel):
+    kind: str = Field(min_length=1, max_length=40)
+    source_type: Literal["conversation", "order", "work_order"]
+    source_id: str = Field(min_length=1, max_length=120)
+    summary: str = Field(min_length=1, max_length=160)
+
+
+class AssistanceAnalysisOut(BaseModel):
+    agent_name: str
+    agent_version: str
+    mode: Literal["offline", "online"]
+    analyzed_at: datetime
+    basis_last_message_id: int | None
+    basis_message_count: int
+    snapshot_fingerprint: str
+    intent: str
+    summary: str
+    service_handling: str
+    current_status: str
+    sentiment: Literal["calm", "concerned"]
+    sentiment_confidence: float = Field(ge=0, le=1)
+    sentiment_reason: str
+    urgency: Literal["normal", "medium", "high"]
+    facts: list[AssistanceFactOut]
+    risks: list[str]
+    next_actions: list[str]
+    suggested_reply: str
+    evidence_message_ids: list[int]
+    journey_insights: list[AssistanceJourneyInsightOut] = Field(default_factory=list, max_length=4)
+    playbook_status: Literal["source_unavailable", "no_match", "present", "truncated"]
+    degraded_reason: str | None = None
+
+
+class MessageSearchItem(MessageOut):
+    buyer_nickname: str | None = None
+    conversation_source_external_id: str | None = None
+
+
+class MessageSearchPage(PageMeta):
+    items: list[MessageSearchItem]
+
+
+class ManagementSummaryOut(BaseModel):
+    conversations: int
+    orders: int
+    products: int
+    work_orders: int
+    pending_work_orders: int
+    work_orders_by_type: dict[str, int]
+
+
+class SourceReferenceOut(BaseModel):
+    source_type: Literal["conversation", "message", "order", "work_order", "status_log"]
+    source_id: str
+
+
+class PanoramaSnapshotOut(BaseModel):
+    generated_at: datetime
+    basis_last_message_id: int | None = None
+    data_latest_at: datetime | None = None
+
+
+class CustomerIdentityOut(BaseModel):
+    customer_id: str
+    buyer_nickname: str | None = None
+    identity_basis: Literal["exact_customer_id"] = "exact_customer_id"
+
+
+class CustomerMetricsOut(BaseModel):
+    recorded_paid_amount: Decimal
+    order_count: int
+    average_order_value: Decimal
+    consultation_count_30d: int
+    after_sales_count: int
+    latest_order_at: datetime | None = None
+
+
+class CustomerTagOut(BaseModel):
+    code: str
+    label: str
+    basis: str
+    source_refs: list[SourceReferenceOut]
+    derived: Literal[True] = True
+
+
+class CustomerAddressOut(BaseModel):
+    province: str | None = None
+    city: str | None = None
+    order_count: int
+    last_used_at: datetime | None = None
+
+
+class CustomerOrderSummaryOut(BaseModel):
+    external_id: str
+    product_name: str | None = None
+    recorded_paid_amount: Decimal | None = None
+    status: str
+    ordered_at: datetime | None = None
+
+
+class CustomerAfterSalesSummaryOut(BaseModel):
+    external_id: str
+    ticket_type: WorkOrderType
+    status: WorkOrderStatus
+    assignee: str | None = None
+    opened_at: datetime | None = None
+    closed_at: datetime | None = None
+
+
+class ServiceTrailNodeOut(BaseModel):
+    kind: Literal[
+        "order_created",
+        "consultation",
+        "work_order_opened",
+        "work_order_status",
+        "work_order_closed",
+    ]
+    occurred_at: datetime
+    title: str
+    detail: str | None = None
+    source_ref: SourceReferenceOut
+
+
+class DerivedMoodOut(BaseModel):
+    value: Literal["calm", "concerned", "unknown"]
+    basis_message_id: int | None = None
+    basis: str
+    derived: Literal[True] = True
+
+
+class CustomerPanoramaOut(BaseModel):
+    snapshot: PanoramaSnapshotOut
+    identity: CustomerIdentityOut
+    metrics: CustomerMetricsOut
+    tags: list[CustomerTagOut]
+    addresses: list[CustomerAddressOut]
+    recent_orders: list[CustomerOrderSummaryOut]
+    recent_after_sales: list[CustomerAfterSalesSummaryOut]
+    service_trail: list[ServiceTrailNodeOut]
+    service_trail_total: int
+    derived_mood: DerivedMoodOut
+
+
+class CustomerInsightOut(BaseModel):
+    generated_at: datetime
+    mode: Literal["offline", "online"]
+    intent: str
+    summary: str
+    sentiment: Literal["calm", "concerned"]
+    emotion_label: str
+    sentiment_confidence: float = Field(ge=0, le=1)
+    sentiment_reason: str
+    urgency: Literal["normal", "medium", "high"]
+    risk_level: Literal["low", "medium", "high"]
+    evidence_message_ids: list[int]
+    degraded_reason: str | None = None
+    journey_insights: list[AssistanceJourneyInsightOut] = Field(default_factory=list, max_length=4)
+    assistance: AssistanceAnalysisOut
+
+
+RiskKind = Literal[
+    "emotion_escalation",
+    "repeat_contact",
+    "repeat_refund",
+    "public_complaint",
+    "service_timeout",
+]
+RiskSeverity = Literal["low", "medium", "high"]
+RiskStatus = Literal["pending_confirmation", "processing", "closed"]
+
+
+class RiskEvidenceOut(BaseModel):
+    source_ref: SourceReferenceOut
+    occurred_at: datetime
+    label: str
+    excerpt: str | None = None
+
+
+class RiskWarningOut(BaseModel):
+    id: str
+    rule_code: RiskKind
+    rule_version: Literal["risk-v1"] = "risk-v1"
+    kind: RiskKind
+    severity: RiskSeverity
+    status: RiskStatus
+    status_basis: str
+    assignee: str | None = None
+    occurred_at: datetime
+    first_response_at: datetime | None = None
+    resolved_at: datetime | None = None
+    conversation_id: str | None = None
+    customer_id: str
+    buyer_nickname: str | None = None
+    order_external_id: str | None = None
+    work_order_external_id: str | None = None
+    title: str
+    summary: str
+    evidence_message_ids: list[int]
+    source_refs: list[SourceReferenceOut]
+    evidence: list[RiskEvidenceOut]
+    derived: Literal[True] = True
+
+
+class RiskWarningPage(PageMeta):
+    rule_version: Literal["risk-v1"] = "risk-v1"
+    as_of_date: str
+    data_latest_at: datetime | None = None
+    items: list[RiskWarningOut]
+
+
+class RiskTrendPointOut(BaseModel):
+    date: str
+    warning_count: int
+
+
+class RiskOverviewOut(BaseModel):
+    rule_version: Literal["risk-v1"] = "risk-v1"
+    timezone: Literal["Asia/Shanghai"] = "Asia/Shanghai"
+    as_of_date: str
+    data_latest_at: datetime | None = None
+    warning_count: int
+    high_open_count: int
+    average_resolution_hours: float | None = None
+    average_resolution_sample_count: int
+    closure_rate: float
+    closure_rate_sample_count: int
+    trend: list[RiskTrendPointOut]

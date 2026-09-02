@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f1f4">
+  <meta name="ui-build" content="20260902-2">
+  <title>L'Oréal Service Atelier · 客服工作台</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <script>
+    (() => {
+      const build = document.querySelector('meta[name="ui-build"]')?.content;
+      const storageKey = "loreal.service.ui-build";
+      if (!build) return;
+      try { sessionStorage.setItem(storageKey, build); } catch (_) { /* storage may be disabled */ }
+      window.addEventListener("pageshow", (event) => {
+        if (!event.persisted) return;
+        try {
+          if (sessionStorage.getItem(storageKey) !== build) window.location.reload();
+        } catch (_) { window.location.reload(); }
+      });
+    })();
+  </script>
+  <link rel="stylesheet" href="/static/styles.css?v=20260901-6">
+  <link rel="stylesheet" href="/static/service_workspace_v03.css?v=20260902-2">
+  <script type="module" src="/static/service_workspace.js?v=20260902-2"></script>
+</head>
+<body class="service-page service-v03" data-page-role="customer_service">
+  <div class="spectrum-rail" aria-hidden="true"></div>
+
+  <header class="atelier-masthead">
+    <a class="workspace-brand" href="/workspace/chat?ui=20260902-2" aria-label="返回客服工作台">
+      <span class="brand-name">L'ORÉAL</span>
+      <span class="brand-subtitle">SERVICE ATELIER</span>
+    </a>
+    <button class="mobile-nav-toggle" id="mobileNavToggle" type="button" aria-label="打开工作区导航" aria-controls="workspaceNavigation" aria-expanded="false">
+      <span aria-hidden="true"></span><span aria-hidden="true"></span>
+    </button>
+    <nav class="workspace-nav" id="workspaceNavigation" aria-label="客服工作区">
+      <a href="/workspace/chat?ui=20260902-2" data-workspace-link="chat"><span>客户沟通</span></a>
+      <a href="/workspace/orders?ui=20260902-2" data-workspace-link="orders"><span>订单管理</span></a>
+      <a href="/workspace/after-sales?ui=20260902-2" data-workspace-link="after-sales"><span>售后管理</span><b id="navPendingCount" aria-label="待跟进数量">—</b></a>
+      <a href="/workspace/products?ui=20260902-2" data-workspace-link="products"><span>商品管理</span></a>
+      <a href="/workspace/risk?ui=20260902-2" data-workspace-link="risk"><span>风险看板</span><b id="navRiskCount" aria-label="预警数量">—</b></a>
+    </nav>
+    <div class="workspace-status" aria-live="polite" data-connection="idle" id="serviceConnectionStatus">
+      <span class="connection-dot" aria-hidden="true"></span>
+      <span class="workspace-status-copy"><small id="workspaceEyebrow">客服工作台</small><span class="title-line"><span id="serviceConnectionText">尚未选择会话</span><strong id="workspaceTitle">客户沟通</strong></span></span>
+      <time id="workspaceClock"></time>
+    </div>
+  </header>
+  <button class="mobile-nav-scrim" id="mobileNavScrim" type="button" aria-label="关闭工作区导航" hidden></button>
+
+  <main class="workspace-shell">
+    <section class="workspace-content">
+      <section class="workspace-view chat-workspace" data-workspace-view="chat">
+        <aside class="conversation-desk atelier-panel" aria-label="会话队列">
+          <div class="desk-heading">
+            <div><h1>会话队列</h1></div>
+            <strong id="conversationCount">0</strong>
+          </div>
+          <form class="workspace-filter" id="conversationFilter">
+            <label><span>搜索会话</span><input name="q" type="search" placeholder="昵称、会话、订单或工单号"></label>
+            <div class="compact-fields">
+              <label><span class="sr-only">会话状态</span><select name="status"><option value="">全部状态</option><option value="open">进行中</option><option value="closed">已结束</option></select></label>
+              <label><span class="sr-only">售后关联</span><select name="has_work_order"><option value="">全部会话</option><option value="true">有关联售后</option><option value="false">无关联售后</option></select></label>
+            </div>
+            <button class="button button-secondary" type="submit">筛选会话</button>
+          </form>
+          <details class="message-search-panel">
+            <summary>搜索聊天内容</summary>
+            <form class="search-field" id="messageSearchForm"><label class="sr-only" for="messageSearchInput">搜索聊天内容</label><input id="messageSearchInput" name="q" required placeholder="输入消息关键词"><button type="submit">搜索</button></form>
+            <div class="search-results" id="messageSearchResults"></div>
+          </details>
+          <div class="conversation-list service-conversation-list" id="serviceConversationList"><div class="empty-compact">正在读取会话…</div></div>
+        </aside>
+
+        <section class="service-chat workspace-chat-stage atelier-panel" aria-label="当前沟通">
+          <div class="chat-empty-state" id="serviceChatEmpty">
+            <div class="empty-orbit" aria-hidden="true"><span></span></div>
+            <span class="eyebrow">请选择会话</span>
+            <h2>从左侧选择一段会话</h2>
+            <p>订单、商品与售后信息会在右侧同步出现，不需要重复查找。</p>
+          </div>
+          <div class="chat-view" id="serviceChatView" hidden>
+            <header class="chat-header service-chat-header">
+              <div><span class="eyebrow" id="serviceChatMeta">客户</span><h2 id="serviceChatTitle">当前沟通</h2><div class="relation-breadcrumb" id="relationBreadcrumb"></div></div>
+              <div class="header-metadata"><strong id="serviceCustomerId">—</strong><small id="serviceConversationId"></small></div>
+            </header>
+            <div class="message-timeline" id="serviceMessages" aria-live="polite"></div>
+            <form class="message-composer service-composer" id="serviceComposer">
+              <div class="attachment-preview" id="serviceAttachment" hidden><span id="serviceAttachmentName"></span><button type="button" class="text-button" id="serviceAttachmentClear">移除</button></div>
+              <div class="composer-row"><label class="attachment-button" for="serviceFile" title="添加附件">＋<span class="sr-only">添加附件</span></label><input id="serviceFile" type="file" hidden><label class="sr-only" for="serviceMessage">客服回复</label><textarea id="serviceMessage" rows="1" maxlength="20000" placeholder="输入回复，Enter 发送，Shift + Enter 换行"></textarea><button class="send-button" type="submit"><span>发送</span><span aria-hidden="true">↗</span></button></div>
+              <div class="composer-status" id="serviceComposerStatus">消息将以客服身份发送</div>
+            </form>
+          </div>
+        </section>
+
+        <aside class="context-rail atelier-panel" aria-label="接待辅助与关联事实">
+          <div class="context-heading"><span class="eyebrow">接待辅助</span><p>AI 提炼当前会话，原始业务信息按需核对</p></div>
+          <div class="context-body">
+            <section class="customer-panorama" id="customerPanorama" data-state="unselected" aria-label="用户全景">
+              <header class="panorama-heading"><div class="panorama-person"><span class="panorama-avatar" id="panoramaAvatar" aria-hidden="true">客</span><div><span class="eyebrow">用户全景</span><h2 id="panoramaIdentity">选择会话后显示</h2><p id="panoramaCustomerId">精确 customer_id 聚合</p></div></div><button class="text-button" id="openCustomerProfile" type="button" disabled>查看档案</button></header>
+              <div class="panorama-signal-row"><span><small>常用地区</small><strong id="panoramaRegion">—</strong></span><span><small>记录实付</small><strong id="panoramaPaidAmount">—</strong></span><span><small>当前风险</small><strong id="panoramaRisk">—</strong></span></div>
+              <div class="panorama-tag-block"><small>画像标签</small><div class="panorama-tags" id="panoramaTags"><span>选择会话后显示</span></div></div>
+              <div class="panorama-metrics" aria-label="用户指标"><span><small>订单</small><strong id="panoramaOrderCount">—</strong></span><span><small>平均客单</small><strong id="panoramaAverageOrder">—</strong></span><span><small>30 日咨询</small><strong id="panoramaConsultationCount">—</strong></span><span><small>售后</small><strong id="panoramaAfterSalesCount">—</strong></span></div>
+              <div class="customer-trajectory"><div class="panorama-section-heading"><strong>服务轨迹</strong><small id="panoramaTrajectoryCount">0 个节点</small></div><div class="trajectory-list" id="customerTrajectory"><div class="context-empty">选择会话后显示</div></div></div>
+              <button class="button button-secondary button-full" id="retryCustomerPanorama" type="button" hidden>重新加载用户全景</button>
+            </section>
+            <section class="assistance-card" id="assistanceCard" data-state="idle" aria-label="AI 会话判断">
+              <header class="ai-analysis-heading"><div><span class="eyebrow">AI 分析</span><h2>会话情绪与意图</h2></div><span class="ai-mode-chip" id="assistanceModeChip">Agent</span></header>
+              <p class="assistance-summary" id="assistanceSummary">选中会话后会自动分析，不会自动发送回复。</p>
+              <div class="ai-insight" id="assistanceInsight" hidden>
+                <section class="ai-intent-block"><div class="ai-insight-label"><span>用户意图</span><strong id="assistanceConfidence">—</strong></div><h3 id="assistanceIntent"></h3><div class="ai-confidence-track" role="progressbar" aria-label="AI 判断置信度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="assistanceConfidenceTrack"><i id="assistanceConfidenceBar"></i></div></section>
+              </div>
+              <div class="assistance-glance" id="assistanceGlance" hidden>
+                <section><span>客服处理</span><p id="assistanceHandling"></p></section>
+                <section><span>当前进度</span><p id="assistanceProgress"></p></section>
+              </div>
+              <div class="assistance-reply" id="assistanceReplyPreview" hidden><span>建议回复 · 发送前请确认</span><p id="assistanceReply"></p><button id="useAssistanceReplyInline" type="button">放入回复框</button></div>
+              <div class="assistance-actions"><button class="assistance-run" id="runAssistance" type="button" disabled>重新分析</button><button class="assistance-detail" id="openAssistance" type="button" hidden>查看完整建议</button></div>
+            </section>
+            <details class="context-facts" id="contextFacts">
+              <summary><span><small>关联事实</small><strong id="contextFactsSummary">选择会话后显示</strong></span><i aria-hidden="true"></i></summary>
+              <div class="context-sections">
+                <section class="context-card" id="customerContextCard"><span class="context-label">客户</span><div class="context-empty">选择会话后显示</div></section>
+                <section class="context-card" id="orderContextCard"><span class="context-label">订单</span><div class="context-empty">暂无关联订单</div></section>
+                <section class="context-card" id="workOrderContextCard"><span class="context-label">售后</span><div class="context-empty">暂无关联工单</div></section>
+                <section class="context-card" id="productContextCard"><span class="context-label">商品</span><div class="context-empty">暂无关联商品</div></section>
+              </div>
+              <button class="button button-primary button-full" id="createTicketFromChat" type="button" disabled>创建售后工单</button>
+            </details>
+          </div>
+        </aside>
+      </section>
+
+      <section class="workspace-view management-view atelier-panel" data-workspace-view="orders" hidden>
+        <div class="management-hero"><div><h1>订单管理</h1><p>查询订单、物流与关联售后，也可以返回原始会话。</p></div><button class="button button-secondary" data-open-import type="button">导入工作簿</button></div>
+        <div class="metric-strip" id="orderMetrics" aria-label="订单概览"></div>
+        <form class="management-filters" id="orderFilters"><label><span>关键词</span><input name="q" type="search" placeholder="订单号、商品或物流单号"></label><label><span>买家昵称</span><input name="buyer_nickname" placeholder="输入买家昵称"></label><label><span>订单状态</span><select name="status"><option value="">全部状态</option><option>待发货</option><option>已发货</option><option>交易成功</option><option>交易关闭</option></select></label><button class="button button-primary">查询订单</button></form>
+        <div class="management-table-wrap"><table class="management-table"><thead><tr><th>订单号</th><th>买家</th><th>商品</th><th>状态</th><th>金额</th><th>物流</th><th>关联</th></tr></thead><tbody id="ordersTableBody"><tr><td colspan="7"><div class="empty-compact">正在读取订单…</div></td></tr></tbody></table></div><div class="table-footer" id="ordersPagination"></div>
+      </section>
+
+      <section class="workspace-view management-view atelier-panel" data-workspace-view="after-sales" hidden>
+        <div class="management-hero"><div><h1>售后管理</h1><p>五类工单在同一队列处理，专属信息保留在详情中。</p></div><button class="button button-secondary" data-open-import type="button">导入工作簿</button></div>
+        <div class="metric-strip" id="ticketMetrics" aria-label="售后概览"></div>
+        <div class="type-tabs" id="ticketTypeTabs" aria-label="按工单类型筛选"><button class="is-active" data-ticket-type="">全部</button><button data-ticket-type="replacement_exchange">补发换货</button><button data-ticket-type="offline_payment">线下打款</button><button data-ticket-type="logistics">物流</button><button data-ticket-type="adverse_reaction">不良反应</button><button data-ticket-type="after_sale_return">售后退货</button></div>
+        <form class="management-filters" id="ticketFilters"><label><span>关键词</span><input name="q" type="search" placeholder="工单、订单、买家或问题"></label><label><span>处理状态</span><select name="status"><option value="">全部状态</option><option value="pending">待处理</option><option value="processing">处理中</option><option value="completed">已完成</option></select></label><label><span>处理人</span><input name="assignee" placeholder="输入客服姓名"></label><button class="button button-primary">查询工单</button></form>
+        <div class="management-table-wrap"><table class="management-table"><thead><tr><th>工单号</th><th>类型</th><th>买家</th><th>关联订单</th><th>问题</th><th>状态</th><th>处理人</th><th>更新时间</th></tr></thead><tbody id="ticketsTableBody"><tr><td colspan="8"><div class="empty-compact">正在读取工单…</div></td></tr></tbody></table></div><div class="table-footer" id="ticketsPagination"></div>
+      </section>
+
+      <section class="workspace-view management-view atelier-panel" data-workspace-view="products" hidden>
+        <div class="management-hero"><div><h1>商品管理</h1><p>查看业务订单涉及的商品档案与关联订单。</p></div><button class="button button-secondary" data-open-import type="button">导入工作簿</button></div>
+        <div class="metric-strip" id="productMetrics" aria-label="商品概览"></div>
+        <form class="management-filters compact-management-filter" id="productFilters"><label><span>搜索商品</span><input name="q" type="search" placeholder="商品名称、货号或 SKU"></label><button class="button button-primary">搜索商品</button></form>
+        <div class="product-grid" id="productsGrid"><div class="empty-compact">正在读取商品…</div></div><div class="table-footer" id="productsPagination"></div>
+      </section>
+
+      <section class="workspace-view management-view risk-workspace atelier-panel" data-workspace-view="risk" hidden>
+        <div class="management-hero"><div><h1>风险预警跟踪看板</h1><p><span id="riskAsOfDate">数据日期待确认</span> · 上海业务日</p></div><a class="button button-secondary" href="/workspace/chat?ui=20260902-2">返回工作台</a></div>
+        <div id="riskOverviewState" aria-live="polite"></div>
+        <div class="metric-strip" id="riskMetrics" aria-label="风险概览"><div class="empty-compact">正在读取风险概览…</div></div>
+        <section class="risk-trend-panel" aria-labelledby="riskTrendTitle"><div class="management-section-heading"><h2 id="riskTrendTitle">近 7 日风险趋势</h2><span>单位：预警数</span></div><div class="risk-trend" id="riskTrend"><div class="empty-compact">正在读取趋势…</div></div></section>
+        <section class="risk-list-panel" aria-labelledby="riskListTitle">
+          <div class="management-section-heading"><h2 id="riskListTitle">预警列表</h2><strong id="riskTotal">共 — 条</strong></div>
+          <div class="type-tabs" id="riskKindFilters" aria-label="按风险类型筛选"><button class="is-active" type="button" data-risk-kind="" aria-pressed="true">全部</button><button type="button" data-risk-kind="emotion_escalation" aria-pressed="false">情绪升级</button><button type="button" data-risk-kind="repeat_contact" aria-pressed="false">重复进线</button><button type="button" data-risk-kind="repeat_refund" aria-pressed="false">重复退款</button><button type="button" data-risk-kind="public_complaint" aria-pressed="false">舆情投诉</button><button type="button" data-risk-kind="service_timeout" aria-pressed="false">服务超时</button></div>
+          <div class="management-table-wrap"><table class="management-table risk-table"><thead><tr><th>发生时间</th><th>客户</th><th>风险类型</th><th>等级</th><th>状态</th><th>负责人</th><th>操作</th></tr></thead><tbody id="riskTableBody"><tr><td colspan="7"><div class="empty-compact">正在读取预警…</div></td></tr></tbody></table></div>
+          <div class="table-footer risk-pagination"><div id="riskPagination"></div><div><button class="button button-secondary" id="riskPrevPage" type="button">上一页</button><button class="button button-secondary" id="riskNextPage" type="button">下一页</button></div></div>
+        </section>
+      </section>
+    </section>
+  </main>
+
+  <aside class="record-drawer" id="recordDrawer" role="dialog" aria-modal="true" aria-label="记录详情" aria-hidden="true" tabindex="-1"><button class="drawer-close" id="drawerClose" type="button" aria-label="关闭详情">×</button><div id="drawerContent"></div></aside>
+  <div class="drawer-scrim" id="drawerScrim" hidden></div>
+  <dialog class="workspace-dialog" id="importDialog"><form method="dialog" class="dialog-close-row"><button aria-label="关闭">×</button></form><span class="eyebrow">工作簿导入</span><h2>导入业务工作簿</h2><p>先检查七张业务表及关联关系，确认后再一次性写入数据库。</p><form id="workbookImportForm" class="import-form"><label class="file-drop">选择 .xlsx 文件<input name="file" type="file" accept=".xlsx" required></label><button class="button button-primary" type="submit">生成预览</button></form><div id="importPreview"></div></dialog>
+  <dialog class="workspace-dialog" id="ticketDialog"><form method="dialog" class="dialog-close-row"><button aria-label="关闭">×</button></form><span class="eyebrow">创建售后</span><h2>创建售后工单</h2><form id="createTicketForm" class="editor-form"><label>工单号<input name="external_id" required placeholder="例如 WO-2026-001"></label><label>工单类型<select name="ticket_type" required><option value="replacement_exchange">补发换货</option><option value="offline_payment">线下打款</option><option value="logistics">物流问题</option><option value="adverse_reaction">不良反应</option><option value="after_sale_return">售后退货</option></select></label><label>问题说明<textarea name="description" rows="3" required></textarea></label><label>处理人<input name="assignee" placeholder="客服姓名"></label><input name="conversation_id" type="hidden"><input name="order_external_id" type="hidden"><input name="buyer_nickname" type="hidden"><button class="button button-primary button-full" type="submit">创建并关联当前会话</button></form></dialog>
+  <div class="toast-region" id="serviceToasts" aria-live="polite"></div>
+</body>
+</html>

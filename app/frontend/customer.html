@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#241820">
+  <title>L'Oréal Beauty Concierge · 客户端</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/styles.css?v=20260901-6">
+  <script type="module" src="/static/customer.js?v=20260810-2"></script>
+</head>
+<body class="customer-page" data-page-role="customer">
+  <div class="spectrum-rail" aria-hidden="true"></div>
+  <div class="customer-shell">
+    <header class="customer-topbar">
+      <a class="brand-lockup" href="/" aria-label="L'Oréal Beauty Concierge 首页">
+        <span class="brand-name">L'ORÉAL</span>
+        <span class="brand-subtitle">BEAUTY CONCIERGE</span>
+      </a>
+      <div class="topbar-actions">
+        <div class="connection-pill" data-connection="idle" id="connectionStatus">
+          <span class="connection-dot" aria-hidden="true"></span>
+          <span id="connectionText">尚未选择会话</span>
+        </div>
+        <button class="icon-button mobile-business-toggle" id="businessToggle" type="button" aria-controls="customerBusiness" aria-expanded="false">
+          <span aria-hidden="true">◇</span><span class="sr-only">打开商品与订单</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="customer-workspace">
+      <aside class="customer-identity panel" aria-label="会话选择">
+        <div class="panel-kicker">私人咨询</div>
+        <h1>让每一次咨询<br>都有迹可循</h1>
+        <p class="panel-intro">输入业务客户编号以创建或筛选会话。这里不是账号登录，也不会验证身份。</p>
+
+        <form class="stack-form" id="customerIdForm">
+          <label for="customerId">业务客户编号</label>
+          <div class="inline-field">
+            <input id="customerId" name="customer_id" type="text" maxlength="100" placeholder="例如 C-001" autocomplete="off" required>
+            <button class="button button-secondary" type="submit">查看会话</button>
+          </div>
+        </form>
+
+        <div class="section-heading compact-heading">
+          <div>
+            <span class="eyebrow">咨询记录</span>
+            <h2>我的咨询</h2>
+          </div>
+          <button class="text-button" id="refreshCustomerConversations" type="button">刷新</button>
+        </div>
+        <div class="conversation-list" id="customerConversationList">
+          <div class="empty-compact">输入客户编号后查看会话</div>
+        </div>
+
+        <form class="new-conversation-form" id="newConversationForm" hidden>
+          <label for="conversationTitle">新咨询主题</label>
+          <input id="conversationTitle" name="title" type="text" maxlength="200" placeholder="例如：精华使用咨询">
+          <button class="button button-primary button-full" type="submit">创建新咨询</button>
+        </form>
+      </aside>
+
+      <section class="chat-stage panel" aria-label="消息区">
+        <div class="chat-empty-state" id="customerChatEmpty">
+          <div class="empty-orbit" aria-hidden="true"><span></span></div>
+          <span class="eyebrow">美妆咨询</span>
+          <h2>选择或创建一段咨询</h2>
+          <p>消息、图片、语音与视频会保存在当前会话中。</p>
+        </div>
+
+        <div class="chat-view" id="customerChatView" hidden>
+          <header class="chat-header">
+            <div>
+              <span class="eyebrow" id="customerChatMeta">当前会话</span>
+              <h2 id="customerChatTitle">咨询</h2>
+            </div>
+            <div class="mono-badge" id="customerChatId"></div>
+          </header>
+          <div class="message-timeline" id="customerMessages" aria-live="polite" aria-label="消息历史"></div>
+          <form class="message-composer" id="customerComposer">
+            <div class="attachment-preview" id="customerAttachment" hidden>
+              <span id="customerAttachmentName"></span>
+              <button type="button" class="text-button" id="customerAttachmentClear">移除</button>
+            </div>
+            <div class="composer-row">
+              <label class="attachment-button" for="customerFile" title="添加附件">
+                <span aria-hidden="true">＋</span><span class="sr-only">添加附件</span>
+              </label>
+              <input id="customerFile" type="file" hidden>
+              <textarea id="customerMessage" rows="1" maxlength="20000" placeholder="输入消息，Enter 发送，Shift + Enter 换行"></textarea>
+              <button class="send-button" type="submit"><span>发送</span><span aria-hidden="true">↗</span></button>
+            </div>
+            <div class="composer-status" id="customerComposerStatus">支持图片、音频、视频和普通文件，单文件最大 50 MiB</div>
+          </form>
+        </div>
+      </section>
+
+      <aside class="customer-business panel" id="customerBusiness" aria-label="商品与订单">
+        <div class="business-header">
+          <div>
+            <span class="eyebrow">业务信息</span>
+            <h2>商品与订单</h2>
+          </div>
+          <button class="icon-button business-close" id="businessClose" type="button" aria-label="关闭商品与订单">×</button>
+        </div>
+        <div class="segmented-control" role="tablist" aria-label="业务数据类型">
+          <button class="segment is-active" type="button" data-customer-tab="products" role="tab" aria-selected="true">商品</button>
+          <button class="segment" type="button" data-customer-tab="orders" role="tab" aria-selected="false">订单</button>
+          <button class="segment" type="button" data-customer-tab="after-sales" role="tab" aria-selected="false">售后进度</button>
+        </div>
+
+        <section class="business-tab is-active" id="customerProductsTab" data-tab-panel="products">
+          <form class="search-field" id="customerProductSearch">
+            <input name="q" type="search" placeholder="搜索商品名称或编号" aria-label="搜索商品">
+            <button type="submit">搜索</button>
+          </form>
+          <div class="product-list-controls"><button class="text-button" id="customerProductListToggle" type="button" aria-controls="customerProductList" aria-expanded="true">收起商品列表</button></div>
+          <div class="data-list customer-product-list" id="customerProductList"><div class="empty-compact">正在读取商品…</div></div>
+        </section>
+
+        <section class="business-tab" id="customerOrdersTab" data-tab-panel="orders" hidden>
+          <p class="context-note" id="customerOrderContext">输入客户编号后，可按该编号查询订单。查询不代表身份验证。</p>
+          <form class="filter-grid" id="customerOrderFilter">
+            <label>订单状态<input name="status" type="text" placeholder="例如：已发货"></label>
+            <button class="button button-secondary" type="submit">查询订单</button>
+          </form>
+          <div class="data-list" id="customerOrderList"><div class="empty-compact">尚未查询订单</div></div>
+        </section>
+
+        <section class="business-tab" id="customerAfterSalesTab" data-tab-panel="after-sales" hidden>
+          <p class="context-note">这里只显示可公开的处理进度、补发物流和已确认退款结果，不展示客服内部记录。</p>
+          <div class="data-list" id="customerAfterSalesList"><div class="empty-compact">输入客户编号后查看售后进度</div></div>
+        </section>
+      </aside>
+    </main>
+  </div>
+  <div class="toast-region" id="customerToasts" aria-live="polite"></div>
+</body>
+</html>
