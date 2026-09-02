@@ -329,6 +329,36 @@ class AssistanceAnalysisOut(BaseModel):
     degraded_reason: str | None = None
 
 
+EmotionLabel = Literal["positive", "neutral", "anxious", "angry", "sad"]
+EmotionRiskType = Literal[
+    "none", "emotion_escalation", "repeat_contact", "repeat_refund", "complaint"
+]
+EmotionSeverity = Literal["low", "medium", "high"]
+
+
+class EmotionAnalysisResultOut(BaseModel):
+    conversation_id: str
+    emotion: EmotionLabel
+    confidence: float = Field(ge=0, le=1)
+    risk_type: EmotionRiskType = "none"
+    severity: EmotionSeverity = "low"
+    summary: str = Field(min_length=1, max_length=120)
+    evidence_message_ids: list[int] = Field(default_factory=list, max_length=5)
+
+
+class EmotionAnalysisRunOut(BaseModel):
+    id: str
+    status: Literal["queued", "running", "completed", "partial_failed", "failed"]
+    total_count: int = Field(ge=0)
+    processed_count: int = Field(ge=0)
+    succeeded_count: int = Field(ge=0)
+    failed_count: int = Field(ge=0)
+    error: str | None = None
+    created_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+
+
 class MessageSearchItem(MessageOut):
     buyer_nickname: str | None = None
     conversation_source_external_id: str | None = None

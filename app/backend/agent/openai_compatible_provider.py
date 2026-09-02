@@ -30,6 +30,22 @@ class ModelAdvice(BaseModel):
     evidence_message_ids: list[int] = Field(max_length=5)
 
 
+class EmotionBatchAdvice(BaseModel):
+    """Narrow, allowlisted result used by the all-conversation risk scan."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    conversation_id: str = Field(min_length=1, max_length=100)
+    emotion: Literal["positive", "neutral", "anxious", "angry", "sad"]
+    confidence: float = Field(ge=0, le=1)
+    risk_type: Literal[
+        "none", "emotion_escalation", "repeat_contact", "repeat_refund", "complaint"
+    ] = "none"
+    severity: Literal["low", "medium", "high"] = "low"
+    summary: str = Field(min_length=1, max_length=120)
+    evidence_message_ids: list[int] = Field(default_factory=list, max_length=5)
+
+
 class OpenAICompatibleChatProvider:
     def __init__(
         self,
@@ -38,6 +54,7 @@ class OpenAICompatibleChatProvider:
         model: str,
         timeout_seconds: float,
         json_mode: bool = True,
+        reasoning_mode: str = "auto",
     ):
         self._api_key = api_key
         self._endpoint = f"{base_url.rstrip('/')}/chat/completions"
@@ -45,6 +62,11 @@ class OpenAICompatibleChatProvider:
         self._model = model
         self._timeout_seconds = timeout_seconds
         self._json_mode = json_mode
+        self._reasoning_mode = reasoning_mode
+
+    @property
+    def model_name(self) -> str:
+        return self._model
 
     def generate(self, context: dict[str, Any]) -> ModelAdvice:
         system_prompt = (
@@ -95,22 +117,7 @@ class OpenAICompatibleChatProvider:
             payload["thinking"] = {"type": "enabled"}
             payload["reasoning_effort"] = "low"
             payload["max_tokens"] = 1200
-        request = Request(
-            self._endpoint,
-            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {self._api_key}",
-                "Content-Type": "application/json; charset=utf-8",
-            },
-            method="POST",
-        )
-        try:
-            with urlopen(request, timeout=self._timeout_seconds) as response:
-                body = response.read(2 * 1024 * 1024)
-        except HTTPError as exc:
-            raise OpenAICompatibleProviderError(f"在线模型接口返回 HTTP {exc.code}") from exc
-        except (URLError, TimeoutError) as exc:
-            raise OpenAICompatibleProviderError("在线模型接口连接失败") from exc
+        body = self._send_payload(payload, optional_reasoning_fallback=self._is_bigmodel)
         try:
             completion = json.loads(body)
             content = completion["choices"][0]["message"]["content"]
@@ -128,6 +135,182 @@ class OpenAICompatibleChatProvider:
         if not evidence:
             evidence = [item["id"] for item in messages if item["sender_role"] == "customer"][-3:]
         return advice.model_copy(update={"evidence_message_ids": evidence})
+
+    def classify_emotions(self, contexts: list[dict[str, Any]]) -> list[EmotionBatchAdvice]:
+        """Classify a bounded batch without generating replies or exposing business records."""
+        if not contexts:
+            return []
+        if len(contexts) > 50:
+            raise ValueError("单批情绪分析不得超过 50 个会话")
+
+        safe_inputs = [self._safe_emotion_input(item) for item in contexts]
+        expected_ids = {item["conversation_id"] for item in safe_inputs}
+        prompt = (
+            "你是客服会话情绪分类器。只依据给定聊天，不得编造、诊断或生成客服回复。"
+            "每个 conversation_id 必须恰好返回一条。emotion 只能是 positive、neutral、"
+            "anxious、angry、sad；risk_type 只能是 none、emotion_escalation、"
+            "repeat_contact、repeat_refund、complaint；severity 只能是 low、medium、high。"
+            "confidence 为 0 到 1。summary 不超过 60 字。evidence_message_ids 只能引用输入 ID。"
+            "返回 JSON 对象，唯一顶层字段为 items。"
+        )
+        payload: dict[str, Any] = {
+            "model": self._model,
+            "messages": [
+                {"role": "system", "content": prompt},
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {"conversations": safe_inputs},
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    ),
+                },
+            ],
+            "stream": False,
+        }
+        if self._json_mode:
+            payload["response_format"] = {"type": "json_object"}
+        self._apply_classification_reasoning(payload)
+        body = self._send_payload(payload, optional_reasoning_fallback=True)
+        try:
+            completion = json.loads(body)
+            content = completion["choices"][0]["message"]["content"]
+            parsed = self._parse_json_object(content)
+            raw_items = parsed["items"]
+            if not isinstance(raw_items, list):
+                raise ValueError("items 不是数组")
+            results = [EmotionBatchAdvice.model_validate(item) for item in raw_items]
+        except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise OpenAICompatibleProviderError("在线情绪分类返回内容未通过结构化校验") from exc
+
+        returned_ids = [item.conversation_id for item in results]
+        if len(returned_ids) != len(set(returned_ids)) or set(returned_ids) != expected_ids:
+            raise OpenAICompatibleProviderError("在线情绪分类返回的会话 ID 不完整")
+        valid_evidence = {
+            item["conversation_id"]: {message["id"] for message in item["messages"]}
+            for item in safe_inputs
+        }
+        return [
+            item.model_copy(
+                update={
+                    "evidence_message_ids": [
+                        message_id
+                        for message_id in item.evidence_message_ids
+                        if message_id in valid_evidence[item.conversation_id]
+                    ]
+                }
+            )
+            for item in results
+        ]
+
+    def _apply_classification_reasoning(self, payload: dict[str, Any]) -> None:
+        mode = self._reasoning_mode
+        if self._is_bigmodel:
+            if mode in {"auto", "disabled"}:
+                payload["thinking"] = {"type": "disabled"}
+            else:
+                payload["thinking"] = {"type": "enabled"}
+                payload["reasoning_effort"] = mode
+            payload["max_tokens"] = 1800
+        elif mode in {"minimal", "low"}:
+            payload["reasoning_effort"] = mode
+
+    @staticmethod
+    def _safe_emotion_input(context: dict[str, Any]) -> dict[str, Any]:
+        conversation_id = context.get("conversation_id") or (context.get("conversation") or {}).get(
+            "id"
+        )
+        messages = context.get("messages") or (context.get("chat") or {}).get("messages") or []
+        if not conversation_id:
+            raise ValueError("情绪分析输入缺少 conversation_id")
+        safe_messages = []
+        for message in messages:
+            content = str(message.get("content") or "").strip()
+            if not content:
+                continue
+            safe_messages.append(
+                {
+                    "id": int(message["id"]),
+                    "sender_role": message.get("sender_role"),
+                    "content": content[:2000],
+                }
+            )
+        return {"conversation_id": str(conversation_id), "messages": safe_messages[-30:]}
+
+    def _send_payload(
+        self, payload: dict[str, Any], *, optional_reasoning_fallback: bool
+    ) -> bytes:
+        try:
+            return self._request_payload(payload)
+        except HTTPError as exc:
+            details = self._http_error_details(exc)
+            if (
+                optional_reasoning_fallback
+                and exc.code in {400, 422}
+                and self._unsupported_optional_parameter(details)
+                and any(key in payload for key in ("thinking", "reasoning_effort", "max_tokens"))
+            ):
+                fallback = dict(payload)
+                for key in ("thinking", "reasoning_effort", "max_tokens"):
+                    fallback.pop(key, None)
+                try:
+                    return self._request_payload(fallback)
+                except HTTPError as retry_exc:
+                    raise OpenAICompatibleProviderError(
+                        f"在线模型接口返回 HTTP {retry_exc.code}"
+                    ) from retry_exc
+            raise OpenAICompatibleProviderError(f"在线模型接口返回 HTTP {exc.code}") from exc
+        except (URLError, TimeoutError) as exc:
+            raise OpenAICompatibleProviderError("在线模型接口连接失败") from exc
+
+    def _request_payload(self, payload: dict[str, Any]) -> bytes:
+        request = Request(
+            self._endpoint,
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {self._api_key}",
+                "Content-Type": "application/json; charset=utf-8",
+            },
+            method="POST",
+        )
+        with urlopen(request, timeout=self._timeout_seconds) as response:
+            return response.read(2 * 1024 * 1024)
+
+    @staticmethod
+    def _http_error_details(error: HTTPError) -> str:
+        try:
+            return error.read(64 * 1024).decode("utf-8", errors="replace")
+        except Exception:  # pragma: no cover - broken third-party error streams
+            return ""
+
+    @staticmethod
+    def _unsupported_optional_parameter(details: str) -> bool:
+        lowered = details.lower()
+        parameter = any(
+            name in lowered for name in ("thinking", "reasoning_effort", "max_tokens")
+        )
+        unsupported = any(
+            marker in lowered
+            for marker in ("unknown", "unsupported", "unrecognized", "extra inputs", "不支持")
+        )
+        return parameter and unsupported
+
+    @staticmethod
+    def _parse_json_object(content: Any) -> dict[str, Any]:
+        if not isinstance(content, str):
+            raise ValueError("模型内容不是文本")
+        cleaned = content.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.split("\n", 1)[-1]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3].rstrip()
+        start, end = cleaned.find("{"), cleaned.rfind("}")
+        if start < 0 or end < start:
+            raise ValueError("模型内容不含 JSON 对象")
+        parsed = json.loads(cleaned[start : end + 1])
+        if not isinstance(parsed, dict):
+            raise ValueError("模型 JSON 不是对象")
+        return parsed
 
     @staticmethod
     def _few_shot_messages() -> list[dict[str, str]]:
@@ -198,19 +381,7 @@ class OpenAICompatibleChatProvider:
 
     @staticmethod
     def _parse_advice(content: Any) -> ModelAdvice:
-        if not isinstance(content, str):
-            raise ValueError("模型内容不是文本")
-        cleaned = content.strip()
-        if cleaned.startswith("```"):
-            cleaned = cleaned.split("\n", 1)[-1]
-            if cleaned.endswith("```"):
-                cleaned = cleaned[:-3].rstrip()
-        start, end = cleaned.find("{"), cleaned.rfind("}")
-        if start < 0 or end < start:
-            raise ValueError("模型内容不含 JSON 对象")
-        data = json.loads(cleaned[start : end + 1])
-        if not isinstance(data, dict):
-            raise ValueError("模型 JSON 不是对象")
+        data = OpenAICompatibleChatProvider._parse_json_object(content)
 
         urgency_map = {
             "一般": "normal",

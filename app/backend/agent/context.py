@@ -14,6 +14,19 @@ from app.backend.models import Conversation, Message, Order, Product, WorkOrder
 MAX_CHAT_CHARS = 12_000
 
 
+def stable_context_fingerprint(context: dict[str, Any]) -> str:
+    """Hash semantic context while ignoring capture time and a prior fingerprint."""
+    payload = dict(context)
+    snapshot = dict(payload.get("snapshot") or {})
+    snapshot.pop("captured_at", None)
+    snapshot.pop("fingerprint", None)
+    payload["snapshot"] = snapshot
+    serialized = json.dumps(
+        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=_json_value
+    )
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
 def _json_value(value: Any) -> Any:
     if isinstance(value, Decimal):
         return str(value)
@@ -192,8 +205,5 @@ def assemble_context(db: Session, conversation: Conversation) -> dict[str, Any]:
         "work_order": work_order,
         "reply_handbook": {"status": "source_unavailable", "candidates": []},
     }
-    fingerprint_payload = json.dumps(envelope, ensure_ascii=False, sort_keys=True)
-    envelope["snapshot"]["fingerprint"] = hashlib.sha256(
-        fingerprint_payload.encode("utf-8")
-    ).hexdigest()
+    envelope["snapshot"]["fingerprint"] = stable_context_fingerprint(envelope)
     return envelope

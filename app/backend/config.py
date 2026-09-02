@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 VALID_ROLES = {"customer", "customer_service"}
+VALID_REASONING_MODES = {"auto", "disabled", "minimal", "low"}
 DEFAULT_PORTS = {"customer": 8000, "customer_service": 8001}
 
 
@@ -36,6 +37,9 @@ class Settings:
     llm_model: str = "qwen3.7-flash"
     llm_timeout_seconds: float = 30.0
     llm_json_mode: bool = True
+    llm_reasoning_mode: str = "disabled"
+    emotion_batch_size: int = 14
+    emotion_batch_workers: int = 2
 
     def __post_init__(self) -> None:
         if self.role not in VALID_ROLES:
@@ -46,6 +50,12 @@ class Settings:
             raise ValueError("poll_interval 必须大于 0")
         if self.llm_timeout_seconds <= 0:
             raise ValueError("llm_timeout_seconds 必须大于 0")
+        if self.llm_reasoning_mode not in VALID_REASONING_MODES:
+            raise ValueError(f"llm_reasoning_mode 必须是 {sorted(VALID_REASONING_MODES)} 之一")
+        if not 1 <= self.emotion_batch_size <= 50:
+            raise ValueError("emotion_batch_size 必须在 1 到 50 之间")
+        if not 1 <= self.emotion_batch_workers <= 8:
+            raise ValueError("emotion_batch_workers 必须在 1 到 8 之间")
 
     @classmethod
     def from_env(cls, role: str | None = None) -> Settings:
@@ -70,4 +80,7 @@ class Settings:
             ),
             llm_json_mode=os.getenv("LLM_JSON_MODE", "true").strip().lower()
             not in {"0", "false", "no", "off"},
+            llm_reasoning_mode=os.getenv("LLM_REASONING_MODE", "disabled").strip().lower(),
+            emotion_batch_size=int(os.getenv("EMOTION_ANALYSIS_BATCH_SIZE", "14")),
+            emotion_batch_workers=int(os.getenv("EMOTION_ANALYSIS_WORKERS", "2")),
         )

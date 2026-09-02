@@ -80,8 +80,9 @@ def test_upgrade_preserves_v01_rows_and_adds_v02_schema(tmp_path) -> None:
         assert connection.scalar(text("SELECT COUNT(*) FROM conversations")) == 1
         assert connection.scalar(text("SELECT external_id FROM orders")) == "ORDER-LEGACY"
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "0001_service_data_v02"
+            "0002_emotion_analysis_cache"
         )
+        assert connection.scalar(text("SELECT COUNT(*) FROM conversation_emotion_analyses")) == 0
     engine.dispose()
 
 
@@ -91,12 +92,18 @@ def test_fresh_database_is_created_and_stamped(tmp_path) -> None:
     upgrade_database(engine)
 
     table_names = set(inspect(engine).get_table_names())
-    assert {"conversations", "orders", "messages", "work_orders", "alembic_version"} <= (
-        table_names
-    )
+    assert {
+        "conversations",
+        "orders",
+        "messages",
+        "work_orders",
+        "emotion_analysis_runs",
+        "conversation_emotion_analyses",
+        "alembic_version",
+    } <= table_names
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "0001_service_data_v02"
+            "0002_emotion_analysis_cache"
         )
     engine.dispose()
 
@@ -113,12 +120,15 @@ from app.backend.db import upgrade_database
 engine = create_engine(f"sqlite:///{sys.argv[1]}")
 upgrade_database(engine)
 tables = set(inspect(engine).get_table_names())
-required = {"conversations", "orders", "messages", "work_orders", "alembic_version"}
+required = {
+    "conversations", "orders", "messages", "work_orders",
+    "emotion_analysis_runs", "conversation_emotion_analyses", "alembic_version"
+}
 if not required <= tables:
     raise SystemExit(f"missing tables: {sorted(required - tables)}")
 with engine.connect() as connection:
     revision = connection.scalar(text("SELECT version_num FROM alembic_version"))
-if revision != "0001_service_data_v02":
+if revision != "0002_emotion_analysis_cache":
     raise SystemExit(f"unexpected revision: {revision}")
 engine.dispose()
 """

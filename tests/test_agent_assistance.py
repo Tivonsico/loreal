@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import json
+from io import BytesIO
+from urllib.error import HTTPError
 
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
 from app.backend.agent import ASSISTANCE_AGENT_NAME, create_agent_registry
+from app.backend.agent.context import stable_context_fingerprint
 from app.backend.agent.customer_service_assistance import CustomerServiceAssistanceAgent
 from app.backend.agent.openai_compatible_provider import (
+    EmotionBatchAdvice,
     ModelAdvice,
     OpenAICompatibleChatProvider,
 )
@@ -19,6 +23,159 @@ from app.backend.models import (
     RealtimeEvent,
     WorkOrder,
 )
+
+
+def test_stable_context_fingerprint_ignores_capture_time_and_prior_hash() -> None:
+    first = {
+        "schema": "customer-service-context.v1",
+        "snapshot": {
+            "captured_at": "2026-01-01T00:00:00Z",
+            "fingerprint": "old",
+            "message_count": 1,
+        },
+        "chat": {"messages": [{"id": 1, "sender_role": "customer", "content": "你好"}]},
+    }
+    second = {
+        **first,
+        "snapshot": {
+            "captured_at": "2026-09-03T00:00:00Z",
+            "fingerprint": "new",
+            "message_count": 1,
+        },
+    }
+
+    assert stable_context_fingerprint(first) == stable_context_fingerprint(second)
+    second["chat"] = {"messages": [{"id": 1, "sender_role": "customer", "content": "退款"}]}
+    assert stable_context_fingerprint(first) != stable_context_fingerprint(second)
+
+
+def test_emotion_batch_uses_disabled_thinking_and_filters_evidence(monkeypatch) -> None:
+    captured: dict = {}
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def read(self, _limit):
+            content = {
+                "items": [
+                    {
+                        "conversation_id": "conv-1",
+                        "emotion": "anxious",
+                        "confidence": 0.91,
+                        "risk_type": "emotion_escalation",
+                        "severity": "high",
+                        "summary": "客户担心退款迟迟未到账。",
+                        "evidence_message_ids": [1, 999],
+                    }
+                ]
+            }
+            return json.dumps(
+                {"choices": [{"message": {"content": json.dumps(content, ensure_ascii=False)}}]}
+            ).encode()
+
+    def fake_urlopen(request, timeout):
+        captured["payload"] = json.loads(request.data)
+        captured["timeout"] = timeout
+        return Response()
+
+    monkeypatch.setattr("app.backend.agent.openai_compatible_provider.urlopen", fake_urlopen)
+    provider = OpenAICompatibleChatProvider(
+        "key",
+        "https://open.bigmodel.cn/api/paas/v4",
+        "glm-5.3-flash",
+        5,
+        reasoning_mode="disabled",
+    )
+
+    results = provider.classify_emotions(
+        [
+            {
+                "conversation_id": "conv-1",
+                "messages": [
+                    {"id": 1, "sender_role": "customer", "content": "退款怎么还没到"},
+                    {"id": 2, "sender_role": "customer_service", "content": "正在查询"},
+                ],
+                "masked_account": "不应离开边界",
+            }
+        ]
+    )
+
+    assert results == [
+        EmotionBatchAdvice(
+            conversation_id="conv-1",
+            emotion="anxious",
+            confidence=0.91,
+            risk_type="emotion_escalation",
+            severity="high",
+            summary="客户担心退款迟迟未到账。",
+            evidence_message_ids=[1],
+        )
+    ]
+    assert captured["payload"]["thinking"] == {"type": "disabled"}
+    assert "reasoning_effort" not in captured["payload"]
+    assert captured["payload"]["max_tokens"] == 1800
+    assert "masked_account" not in captured["payload"]["messages"][-1]["content"]
+
+
+def test_emotion_batch_retries_once_without_optional_reasoning_fields(monkeypatch) -> None:
+    payloads: list[dict] = []
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def read(self, _limit):
+            content = {
+                "items": [
+                    {
+                        "conversation_id": "conv-1",
+                        "emotion": "neutral",
+                        "confidence": 0.8,
+                        "summary": "客户正在普通咨询。",
+                    }
+                ]
+            }
+            return json.dumps(
+                {"choices": [{"message": {"content": json.dumps(content, ensure_ascii=False)}}]}
+            ).encode()
+
+    def fake_urlopen(request, timeout):
+        payloads.append(json.loads(request.data))
+        if len(payloads) == 1:
+            raise HTTPError(
+                request.full_url,
+                400,
+                "bad request",
+                {},
+                BytesIO(b'{"error":"unsupported parameter: thinking"}'),
+            )
+        return Response()
+
+    monkeypatch.setattr("app.backend.agent.openai_compatible_provider.urlopen", fake_urlopen)
+    provider = OpenAICompatibleChatProvider(
+        "key", "https://open.bigmodel.cn/api/paas/v4", "glm", 5
+    )
+
+    result = provider.classify_emotions(
+        [
+            {
+                "conversation_id": "conv-1",
+                "messages": [{"id": 1, "sender_role": "customer", "content": "查订单"}],
+            }
+        ]
+    )
+
+    assert result[0].conversation_id == "conv-1"
+    assert len(payloads) == 2
+    assert payloads[0]["thinking"] == {"type": "disabled"}
+    assert all(key not in payloads[1] for key in ("thinking", "reasoning_effort", "max_tokens"))
 
 
 def _seed_assistance_conversation(app, *, with_business_records: bool = True) -> str:

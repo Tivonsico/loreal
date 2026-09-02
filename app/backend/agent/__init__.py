@@ -12,10 +12,13 @@ def create_agent_registry(
     model: str = "qwen3.7-flash",
     timeout_seconds: float = 30.0,
     json_mode: bool = True,
+    reasoning_mode: str = "auto",
 ) -> AgentRegistry:
     registry = AgentRegistry()
     provider = (
-        OpenAICompatibleChatProvider(api_key, base_url, model, timeout_seconds, json_mode)
+        OpenAICompatibleChatProvider(
+            api_key, base_url, model, timeout_seconds, json_mode, reasoning_mode
+        )
         if api_key
         else None
     )

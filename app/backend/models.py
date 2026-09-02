@@ -277,3 +277,54 @@ class ImportRowError(Base):
     column_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     error_code: Mapped[str] = mapped_column(String(100))
     message: Mapped[str] = mapped_column(Text)
+
+
+class EmotionAnalysisRun(Base):
+    """Durable progress record for one incremental emotion-analysis pass."""
+
+    __tablename__ = "emotion_analysis_runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    analysis_kind: Mapped[str] = mapped_column(
+        String(50), default="conversation-emotion-v1", index=True
+    )
+    status: Mapped[str] = mapped_column(String(30), default="queued", index=True)
+    model_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    total_count: Mapped[int] = mapped_column(Integer, default=0)
+    processed_count: Mapped[int] = mapped_column(Integer, default=0)
+    succeeded_count: Mapped[int] = mapped_column(Integer, default=0)
+    failed_count: Mapped[int] = mapped_column(Integer, default=0)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ConversationEmotionAnalysis(Base):
+    """Latest reusable AI classification for one conversation and analysis kind."""
+
+    __tablename__ = "conversation_emotion_analyses"
+    __table_args__ = (
+        UniqueConstraint(
+            "conversation_id", "analysis_kind", name="uq_conversation_emotion_kind"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    conversation_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("conversations.id", ondelete="CASCADE"), index=True
+    )
+    analysis_kind: Mapped[str] = mapped_column(
+        String(50), default="conversation-emotion-v1", index=True
+    )
+    content_fingerprint: Mapped[str] = mapped_column(String(64), index=True)
+    prompt_version: Mapped[str] = mapped_column(String(50), default="emotion-v1")
+    agent_version: Mapped[str] = mapped_column(String(50), default="emotion-batch-v1")
+    model_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    status: Mapped[str] = mapped_column(String(30), default="pending", index=True)
+    result: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    analyzed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
