@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
@@ -35,6 +37,46 @@ router = APIRouter(
 )
 
 
+ASSISTANT_SUMMARY_FILENAME = "summary.json"
+
+
+def _assistant_summary_path(request: Request, conversation_id: str) -> Path:
+    safe_id = Path(conversation_id).name
+    return request.app.state.settings.assistant_dir / safe_id / ASSISTANT_SUMMARY_FILENAME
+
+
+def _save_assistant_summary(
+    request: Request, conversation_id: str, result: AssistanceAnalysisOut
+) -> None:
+    path = _assistant_summary_path(request, conversation_id)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(result.model_dump_json(indent=2), encoding="utf-8")
+    except OSError:
+        pass  # 存档失败不影响本次分析返回
+
+
+@router.get(
+    "/conversations/{conversation_id}/assistance",
+    response_model=AssistanceAnalysisOut,
+)
+def read_conversation_assistance(
+    conversation_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> AssistanceAnalysisOut:
+    conversation = db.get(Conversation, conversation_id)
+    if conversation is None:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    path = _assistant_summary_path(request, conversation_id)
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="尚未保存AI分析结果")
+    try:
+        return AssistanceAnalysisOut.model_validate_json(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise HTTPException(status_code=503, detail="AI分析存档读取失败") from None
+
+
 @router.post(
     "/conversations/{conversation_id}/assistance",
     response_model=AssistanceAnalysisOut,
@@ -50,9 +92,11 @@ def conversation_assistance(
     context = assemble_context(db, conversation)
     try:
         agent = request.app.state.agent_registry.get(ASSISTANCE_AGENT_NAME)
-        return agent.run(context)
+        result = agent.run(context)
     except (LookupError, RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=503, detail="接待辅助暂时不可用") from exc
+    _save_assistant_summary(request, conversation_id, result)
+    return result
 
 
 def _order_out(db: Session, order: Order) -> ManagementOrderOut:

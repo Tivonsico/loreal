@@ -30,6 +30,7 @@ class Settings:
     role: str
     database_url: str
     media_dir: Path
+    assistant_dir: Path = Path("./data/assistant")
     max_upload_bytes: int = 50 * 1024 * 1024
     poll_interval: float = 0.2
     llm_api_key: str | None = field(default=None, repr=False)
@@ -64,6 +65,7 @@ class Settings:
             role=role or os.getenv("APP_ROLE", "customer"),
             database_url=os.getenv("APP_DATABASE_URL", "sqlite:///./data/app.db"),
             media_dir=Path(os.getenv("APP_MEDIA_DIR", "./data/media")).resolve(),
+            assistant_dir=Path(os.getenv("APP_ASSISTANT_DIR", "./data/assistant")).resolve(),
             max_upload_bytes=int(os.getenv("APP_MAX_UPLOAD_BYTES", 50 * 1024 * 1024)),
             poll_interval=float(os.getenv("APP_POLL_INTERVAL", "0.2")),
             llm_api_key=os.getenv("LLM_API_KEY") or os.getenv("DASHSCOPE_API_KEY") or None,

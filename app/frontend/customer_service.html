@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f6f1f4">
-  <meta name="ui-build" content="20260903-4">
+  <meta name="ui-build" content="20260903-15">
   <title>L'Oréal Service Atelier · 客服工作台</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <script>
@@ -22,14 +22,14 @@
     })();
   </script>
   <link rel="stylesheet" href="/static/styles.css?v=20260901-6">
-  <link rel="stylesheet" href="/static/service_workspace_v03.css?v=20260903-4">
-  <script type="module" src="/static/service_workspace.js?v=20260903-4"></script>
+  <link rel="stylesheet" href="/static/service_workspace_v03.css?v=20260903-15">
+  <script type="module" src="/static/service_workspace.js?v=20260903-15"></script>
 </head>
 <body class="service-page service-v03" data-page-role="customer_service">
   <div class="spectrum-rail" aria-hidden="true"></div>
 
   <header class="atelier-masthead">
-    <a class="workspace-brand" href="/workspace/chat?ui=20260903-4" aria-label="返回客服工作台">
+    <a class="workspace-brand" href="/workspace/chat?ui=20260903-15" aria-label="返回客服工作台">
       <span class="brand-name">L'ORÉAL</span>
       <span class="brand-subtitle">SERVICE ATELIER</span>
     </a>
@@ -37,11 +37,11 @@
       <span aria-hidden="true"></span><span aria-hidden="true"></span>
     </button>
     <nav class="workspace-nav" id="workspaceNavigation" aria-label="客服工作区">
-      <a href="/workspace/chat?ui=20260903-4" data-workspace-link="chat"><span>客户沟通</span></a>
-      <a href="/workspace/orders?ui=20260903-4" data-workspace-link="orders"><span>订单管理</span></a>
-      <a href="/workspace/after-sales?ui=20260903-4" data-workspace-link="after-sales"><span>售后管理</span><b id="navPendingCount" aria-label="待跟进数量">—</b></a>
-      <a href="/workspace/products?ui=20260903-4" data-workspace-link="products"><span>商品管理</span></a>
-      <a href="/workspace/risk?ui=20260903-4" data-workspace-link="risk"><span>情绪风险</span><b id="navRiskCount" aria-label="风险数量">—</b></a>
+      <a href="/workspace/chat?ui=20260903-15" data-workspace-link="chat"><span>客户沟通</span></a>
+      <a href="/workspace/orders?ui=20260903-15" data-workspace-link="orders"><span>订单管理</span></a>
+      <a href="/workspace/after-sales?ui=20260903-15" data-workspace-link="after-sales"><span>售后管理</span><b id="navPendingCount" aria-label="待跟进数量">—</b></a>
+      <a href="/workspace/products?ui=20260903-15" data-workspace-link="products"><span>商品管理</span></a>
+      <a href="/workspace/risk?ui=20260903-15" data-workspace-link="risk"><span>情绪风险</span><b id="navRiskCount" aria-label="风险数量">—</b></a>
     </nav>
     <div class="workspace-status" aria-live="polite" data-connection="idle" id="serviceConnectionStatus">
       <span class="connection-dot" aria-hidden="true"></span>
@@ -110,8 +110,6 @@
             </section>
             <section class="ai-insight-card" id="aiInsightCard" data-state="idle" aria-label="AI 精简分析">
               <header><strong>AI 分析</strong><span>Agent</span></header>
-              <div class="ai-insight-row"><p><small>用户意图</small><b id="aiInsightIntent">待分析</b></p><em id="aiIntentConfidence">0%</em></div>
-              <i class="ai-confidence-track"><span id="aiIntentBar"></span></i>
               <div class="ai-insight-row"><p><small>情绪判断</small><b id="aiInsightEmotion">待分析</b></p><em id="aiEmotionConfidence">0%</em></div>
               <i class="ai-confidence-track"><span id="aiEmotionBar"></span></i>
               <small class="ai-insight-status" id="aiInsightStatus">选择会话后自动分析</small>
@@ -163,7 +161,7 @@
       </section>
 
       <section class="workspace-view risk-workspace atelier-panel" data-workspace-view="risk" hidden>
-        <div class="risk-hero"><div><h1>情绪风险跟踪看板</h1><p id="riskRunStatus">先显示已缓存结果，后台自动补齐新会话。</p></div><button class="button button-secondary" id="refreshRiskAnalysis" type="button">刷新分析</button></div>
+        <div class="risk-hero"><div><h1>情绪风险跟踪看板</h1><p id="riskRunStatus">面板刷新时间：正在读取…</p></div><button class="button button-secondary" id="refreshRiskAnalysis" type="button">刷新分析</button></div>
         <div class="risk-kpis" id="riskKpis" aria-label="情绪风险概览">
           <article><span>今日预警</span><strong id="riskWarningCount">—</strong><small>需要关注的会话</small></article>
           <article><span>高风险待处理</span><strong id="riskHighCount">—</strong><small>优先确认与回应</small></article>
@@ -174,6 +172,7 @@
           <section class="risk-trend-card"><header><h2>近 7 日风险趋势</h2><small>单位：预警数</small></header><div class="risk-bars" id="riskTrendChart" aria-label="近 7 日风险柱状图"></div></section>
           <section class="risk-list-card"><header><div><h2>预警列表</h2><small id="riskListCount">共 0 条</small></div><div class="risk-progress" id="riskProgress" hidden><span id="riskProgressText">正在分析</span><i><b id="riskProgressBar"></b></i></div></header>
             <form class="risk-filters" id="riskFilters"><button class="is-active" type="button" data-risk-type="">全部</button><button type="button" data-risk-type="emotion_escalation">情绪升级</button><button type="button" data-risk-type="repeat_contact">重复进线</button><button type="button" data-risk-type="repeat_refund">重复退款</button><button type="button" data-risk-type="complaint">舆情投诉</button></form>
+            <div class="risk-table-head" aria-hidden="true"><span>时间</span><span>用户名 / 会话名</span><span>风险等级</span><span>风险类型</span><span>分析状态</span><span>客服名</span><span>操作</span></div>
             <div class="risk-list" id="riskList"><p class="compact-placeholder">正在读取已缓存分析…</p></div>
           </section>
         </div>

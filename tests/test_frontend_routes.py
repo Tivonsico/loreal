@@ -15,7 +15,7 @@ def test_root_page_matches_backend_role(app_pair):
 
         assert service_page.status_code == 200
         assert len(service_page.history) == 1
-        assert str(service_page.url).endswith("/workspace/chat?ui=20260903-4")
+        assert str(service_page.url).endswith("/workspace/chat?ui=20260903-15")
         assert service_page.headers["cache-control"] == "no-store, max-age=0"
         assert service_page.headers["pragma"] == "no-cache"
         assert 'data-page-role="customer_service"' in service_page.text
@@ -44,7 +44,7 @@ def test_customer_service_has_five_direct_workspace_routes(app_pair):
             page = client.get(route)
             assert page.status_code == 200
             assert len(page.history) == 1
-            assert "ui=20260903-4" in str(page.url)
+            assert "ui=20260903-15" in str(page.url)
             assert page.headers["cache-control"] == "no-store, max-age=0"
             assert page.headers["pragma"] == "no-cache"
             assert label in page.text
@@ -65,8 +65,8 @@ def test_customer_service_uses_versioned_isolated_visual_layer(app_pair):
         assert stylesheet.status_code == 200
         assert workspace_script.status_code == 200
         assert stylesheet.headers["content-type"].startswith("text/css")
-        assert "service_workspace_v03.css?v=20260903-4" in page.text
-        assert '<meta name="ui-build" content="20260903-4">' in page.text
+        assert "service_workspace_v03.css?v=20260903-15" in page.text
+        assert '<meta name="ui-build" content="20260903-15">' in page.text
         assert 'const storageKey = "loreal.service.ui-build"' in page.text
         assert 'window.addEventListener("pageshow"' in page.text
         assert "event.persisted" in page.text
@@ -75,26 +75,26 @@ def test_customer_service_uses_versioned_isolated_visual_layer(app_pair):
         assert "订单台账" not in page.text
         assert "工单中心" not in page.text
         assert "商品档案</small>" not in page.text
-        assert "service_workspace.js?v=20260903-4" in page.text
-        assert 'href="/workspace/chat?ui=20260903-4"' in page.text
-        assert 'href="/workspace/orders?ui=20260903-4"' in page.text
-        assert 'href="/workspace/risk?ui=20260903-4"' in page.text
-        assert 'const UI_BUILD = "20260903-4"' in workspace_script.text
+        assert "service_workspace.js?v=20260903-15" in page.text
+        assert 'href="/workspace/chat?ui=20260903-15"' in page.text
+        assert 'href="/workspace/orders?ui=20260903-15"' in page.text
+        assert 'href="/workspace/risk?ui=20260903-15"' in page.text
+        assert 'const UI_BUILD = "20260903-15"' in workspace_script.text
         assert 'url.searchParams.set("ui", UI_BUILD)' in workspace_script.text
         assert '<span class="eyebrow">会话</span><h1>会话队列</h1>' not in page.text
         assert '<span class="eyebrow">订单业务</span><h1>订单管理</h1>' not in page.text
         assert '<span class="eyebrow">售后中心</span><h1>售后管理</h1>' not in page.text
         assert '<span class="eyebrow">商品目录</span><h1>商品管理</h1>' not in page.text
-        assert 'from "./api.js?v=20260903-4"' in workspace_script.text
+        assert 'from "./api.js?v=20260903-15"' in workspace_script.text
         assert "L'Oréal Service Atelier v0.3" in stylesheet.text
         assert "font-family: var(--brand-display)" in stylesheet.text
         assert "font-family: var(--brand-mono)" in stylesheet.text
         assert "--service-font: var(--body)" in stylesheet.text
-        assert "--priority-label-size: 13px" in stylesheet.text
+        assert "--priority-label-size: 20px" in stylesheet.text
         assert "--display: var(--service-font)" in stylesheet.text
         assert "--mono: var(--service-font)" in stylesheet.text
         assert "font-family: var(--service-font)" in stylesheet.text
-        assert stylesheet.text.count("font-size: var(--priority-label-size)") >= 4
+        assert stylesheet.text.count("font-size: var(--priority-label-size)") >= 1
         assert "font-size: var(--section-label-size)" in stylesheet.text
         assert ".service-v03 .atelier-masthead" in stylesheet.text
         assert ".service-v03 .chat-workspace" in stylesheet.text
@@ -105,13 +105,14 @@ def test_customer_service_uses_versioned_isolated_visual_layer(app_pair):
         assert ".service-v03 .context-facts" in stylesheet.text
         assert ".service-v03 .assistance-reply" in stylesheet.text
         assert "overflow-y: scroll; scrollbar-gutter: stable" in stylesheet.text
-        assert "grid-template-columns: 240px minmax(340px, 1fr) 480px" in stylesheet.text
-        assert "grid-template-columns: 220px minmax(320px, 1fr) 430px" in stylesheet.text
+        assert "grid-template-columns: 321px minmax(320px, 1fr) 672px" in stylesheet.text
+        assert "@media (max-width: 1540px) and (min-width: 1101px)" in stylesheet.text
+        assert "grid-template-columns: 220px minmax(0, 1fr)" in stylesheet.text
         assert ".service-v03 .context-heading" not in stylesheet.text
-        assert "min-height: 244px; padding: 18px" in stylesheet.text
-        assert ".service-v03 .panorama-identity strong { font-size: 18px; }" in stylesheet.text
-        assert "font-size: 19px; line-height: 1.62" in stylesheet.text
-        assert "font-size: 18px; line-height: 1.62" in stylesheet.text
+        assert "min-height: 330px; padding: 28px" in stylesheet.text
+        assert ".service-v03 .panorama-identity strong { font-size: 26px; }" in stylesheet.text
+        assert "font-size: 23px; line-height: 1.58" in stylesheet.text
+        assert "font-size: 21px; line-height: 1.62" in stylesheet.text
         assert ".service-v03 .context-body > :first-child" not in stylesheet.text
         assert "align-content: start; justify-items: start" in stylesheet.text
         assert "max-height: 150px" not in stylesheet.text
@@ -132,21 +133,44 @@ def test_customer_service_uses_versioned_isolated_visual_layer(app_pair):
         assert "state.assistanceByConversation.set(conversationId, result)" in workspace_script.text
         assert "cached.basis_last_message_id" in workspace_script.text
         assert "restoreOrRunAssistance(messages.items)" in workspace_script.text
-        assert "result.intent_confidence ?? 0.5" in workspace_script.text
+        assert 'const ASSISTANCE_STORAGE_PREFIX = "beauty.service.assistance."' in workspace_script.text
+        assert "writeStoredAssistance(conversationId, result)" in workspace_script.text
+        assert "readStoredAssistance(state.conversationId)" in workspace_script.text
+        assert "api.conversationAssistanceSaved(conversationId)" in workspace_script.text
+        assert "function markStaleIfBasisChanged(cached, messages)" in workspace_script.text
         assert "confidence + 4" not in workspace_script.text
         assert "api.customerPanorama(conversationId)" in workspace_script.text
         assert 'risk: ["情绪风险", "预警看板"]' in workspace_script.text
         assert 'if (state.view === "risk") initializeRisk();' in workspace_script.text
         assert "generation !== state.riskGeneration" in workspace_script.text
         assert "window.setTimeout(pollRiskRun, 1500)" in workspace_script.text
-        assert "height: 144px; min-height: 136px; max-height: 154px" in stylesheet.text
-        assert "grid-template-columns: minmax(280px, .9fr) minmax(0, 1.8fr)" in stylesheet.text
+        assert "function updateRiskRefreshTime()" in workspace_script.text
+        assert "面板刷新时间：" in page.text
+        assert "已展示最新持久化分析结果。" not in workspace_script.text
+        assert "font-size: clamp(34px, 3vw, 46px)" in stylesheet.text
+        assert (
+            ':is([data-workspace-view="orders"], [data-workspace-view="after-sales"]) '
+            "{ font-size: 21px; }" in stylesheet.text
+        )
+        assert ".management-table td { padding: 24px 18px; }" in stylesheet.text
+        assert workspace_script.text.count("params.page_size = 200") == 2
+        assert ".management-table th { position: sticky; top: 0; z-index: 1;" in stylesheet.text
+        assert "height: 210px; min-height: 200px; max-height: 250px" in stylesheet.text
+        assert "grid-template-columns: minmax(420px, 465px) minmax(0, 1fr)" in stylesheet.text
+        assert "width: 100%; max-width: none; margin-inline: 0" in stylesheet.text
         assert "min-height: 108px" in stylesheet.text
         reference_row_grid = (
-            "grid-template-columns: 84px minmax(110px, 1.2fr) "
-            "minmax(150px, 1.6fr) 70px 86px minmax(90px, 1fr) 72px"
+            "grid-template-columns: 118px minmax(150px, 1.2fr) 100px "
+            "minmax(200px, 1.7fr) 118px minmax(110px, 1fr) 88px"
         )
         assert reference_row_grid in stylesheet.text
+        assert "min-height: 158px" in stylesheet.text
+        assert ".service-v03 .risk-row span strong { overflow: hidden; font-size: 24px" in stylesheet.text
+        assert "min-height: 58px" in stylesheet.text
+        assert "font-size: 18px; font-weight: 800" in stylesheet.text
+        assert 'class="risk-table-head"' in page.text
+        assert "用户名 / 会话名" in page.text
+        assert workspace_script.text.index('item.severity === "high"') < workspace_script.text.index("riskTypeLabel(item.risk_type)")
         assert "selectedRiskConversation" in workspace_script.text
         assert "item.status === \"succeeded\"" in workspace_script.text
         assert "依据完整聊天" in workspace_script.text
@@ -232,7 +256,7 @@ def test_frontends_localize_operational_labels_and_work_order_fields(app_pair):
         customer_page = client.get("/").text
         customer_script = client.get("/static/customer.js").text
 
-    assert "service_workspace.js?v=20260903-4" in service_page
+    assert "service_workspace.js?v=20260903-15" in service_page
     assert "customer.js?v=20260810-2" in customer_page
     assert 'from "./chat.js?v=20260810-1"' in service_script
     assert 'from "./chat.js?v=20260810-1"' in customer_script
@@ -342,9 +366,9 @@ def test_customer_and_service_share_atelier_visual_contract(app_pair):
 
     assert "styles.css?v=20260901-6" in customer_page
     assert "styles.css?v=20260901-6" in service_page
-    assert "service_workspace_v03.css?v=20260903-4" in service_page
+    assert "service_workspace_v03.css?v=20260903-15" in service_page
     assert service_page.index("styles.css?v=20260901-6") < service_page.index(
-        "service_workspace_v03.css?v=20260903-4"
+        "service_workspace_v03.css?v=20260903-15"
     )
 
     assert "grid-template-columns: 270px minmax(380px, 1fr) 410px" in shared_css

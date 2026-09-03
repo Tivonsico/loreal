@@ -1,4 +1,4 @@
-import { api, ConversationSocket } from "./api.js?v=20260903-4";
+import { api, ConversationSocket } from "./api.js?v=20260903-15";
 import {
   MessageTimeline,
   autoGrow,
@@ -13,7 +13,7 @@ import {
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-const UI_BUILD = "20260903-4";
+const UI_BUILD = "20260903-15";
 const viewNames = {
   chat: ["客户沟通", "客服接待席"],
   orders: ["订单管理", "订单业务"],
@@ -229,6 +229,23 @@ const socket = new ConversationSocket({
   },
 });
 
+const ASSISTANCE_STORAGE_PREFIX = "beauty.service.assistance.";
+
+function readStoredAssistance(conversationId) {
+  if (!conversationId) return null;
+  try {
+    const raw = localStorage.getItem(ASSISTANCE_STORAGE_PREFIX + conversationId);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_) { return null; }
+}
+
+function writeStoredAssistance(conversationId, result) {
+  if (!conversationId || !result) return;
+  try {
+    localStorage.setItem(ASSISTANCE_STORAGE_PREFIX + conversationId, JSON.stringify(result));
+  } catch (_) { /* storage may be unavailable */ }
+}
+
 function resetAssistance() {
   state.assistance = null;
   state.assistanceGeneration += 1;
@@ -243,11 +260,8 @@ function resetAssistance() {
   $("#runAssistance").hidden = false;
   $("#openAssistance").hidden = true;
   $("#aiInsightCard").dataset.state = "idle";
-  $("#aiInsightIntent").textContent = "待分析";
   $("#aiInsightEmotion").textContent = "待分析";
-  $("#aiIntentConfidence").textContent = "0%";
   $("#aiEmotionConfidence").textContent = "0%";
-  $("#aiIntentBar").style.width = "0%";
   $("#aiEmotionBar").style.width = "0%";
   $("#aiInsightStatus").textContent = state.conversationId ? "正在等待分析" : "选择会话后自动分析";
 }
@@ -269,13 +283,9 @@ const emotionLabels = {
 
 function renderAiInsight(result) {
   const confidence = Math.round((result.emotion_confidence ?? 0.5) * 100);
-  const intentConfidence = Math.round((result.intent_confidence ?? 0.5) * 100);
   $("#aiInsightCard").dataset.state = result.degraded_reason ? "degraded" : "ready";
-  $("#aiInsightIntent").textContent = result.intent || "一般咨询";
   $("#aiInsightEmotion").textContent = emotionLabels[result.emotion] || "平稳";
-  $("#aiIntentConfidence").textContent = `${intentConfidence}%`;
   $("#aiEmotionConfidence").textContent = `${confidence}%`;
-  $("#aiIntentBar").style.width = `${intentConfidence}%`;
   $("#aiEmotionBar").style.width = `${confidence}%`;
   $("#aiInsightStatus").textContent = result.degraded_reason ? "已使用快速离线判断" : "已分析完整聊天";
 }
@@ -331,23 +341,39 @@ function renderAssistance(result) {
   $("#openAssistance").hidden = false;
 }
 
-function restoreOrRunAssistance(messages) {
-  const cached = state.assistanceByConversation.get(state.conversationId);
-  if (!cached) {
-    void runAssistance();
-    return;
-  }
-  renderAssistance(cached);
+function markStaleIfBasisChanged(cached, messages) {
   const latestMessageId = messages.at(-1)?.id ?? null;
   if (String(cached.basis_last_message_id ?? "") !== String(latestMessageId ?? "")) {
     markAssistanceStale();
   }
 }
 
+async function restoreOrRunAssistance(messages) {
+  const conversationId = state.conversationId;
+  const cached = state.assistanceByConversation.get(conversationId) || readStoredAssistance(conversationId);
+  if (cached) {
+    state.assistanceByConversation.set(conversationId, cached);
+    renderAssistance(cached);
+    markStaleIfBasisChanged(cached, messages);
+    return;
+  }
+  try {
+    const saved = await api.conversationAssistanceSaved(conversationId);
+    if (state.conversationId !== conversationId) return;
+    state.assistanceByConversation.set(conversationId, saved);
+    writeStoredAssistance(conversationId, saved);
+    renderAssistance(saved);
+    markStaleIfBasisChanged(saved, messages);
+  } catch (_) {
+    if (state.conversationId !== conversationId) return;
+    void runAssistance();
+  }
+}
+
 async function runAssistance() {
   if (!state.conversationId) return;
   const conversationId = state.conversationId;
-  const previous = state.assistanceByConversation.get(conversationId) || null;
+  const previous = state.assistanceByConversation.get(conversationId) || readStoredAssistance(conversationId);
   const generation = ++state.assistanceGeneration;
   const card = $("#assistanceCard");
   card.dataset.state = "loading";
@@ -363,6 +389,7 @@ async function runAssistance() {
     const result = await api.conversationAssistance(conversationId);
     if (state.conversationId !== conversationId || generation !== state.assistanceGeneration) return;
     state.assistanceByConversation.set(conversationId, result);
+    writeStoredAssistance(conversationId, result);
     renderAssistance(result);
   } catch (error) {
     if (state.conversationId !== conversationId || generation !== state.assistanceGeneration) return;
@@ -602,6 +629,7 @@ function paginationText(result) {
 
 async function loadOrders() {
   const params = Object.fromEntries(new FormData($("#orderFilters")));
+  params.page_size = 200;
   $("#ordersTableBody").innerHTML = '<tr><td colspan="7"><div class="empty-compact">正在读取订单…</div></td></tr>';
   try {
     const result = await api.managementOrders(params);
@@ -668,6 +696,7 @@ async function openOrder(id) {
 async function loadTickets() {
   const params = Object.fromEntries(new FormData($("#ticketFilters")));
   params.ticket_type = state.ticketType;
+  params.page_size = 200;
   $("#ticketsTableBody").innerHTML = '<tr><td colspan="8"><div class="empty-compact">正在读取工单…</div></td></tr>';
   try {
     const result = await api.workOrders(params);
@@ -748,8 +777,8 @@ function renderRiskList(result) {
     <button class="risk-row${state.selectedRiskConversation === item.conversation_id ? " is-selected" : ""}" type="button" data-risk-conversation="${escapeHtml(item.conversation_id)}">
       <time>${escapeHtml(formatDate(item.updated_at))}</time>
       <span><strong>${escapeHtml(item.buyer_nickname || item.conversation_id)}</strong><small>${escapeHtml(item.summary)}</small></span>
-      <b data-severity="${escapeHtml(item.severity)}">${escapeHtml(riskTypeLabel(item.risk_type))}</b>
       <em>${escapeHtml(item.severity === "high" ? "高" : item.severity === "medium" ? "中" : "低")}</em>
+      <b data-severity="${escapeHtml(item.severity)}">${escapeHtml(riskTypeLabel(item.risk_type))}</b>
       <mark data-status="${escapeHtml(item.status)}">${escapeHtml(item.status === "succeeded" ? "已分析" : item.status === "failed" ? "失败" : "待更新")}</mark>
       <i>${escapeHtml(item.assignee || "未分配")}</i><u>详情</u>
     </button>`).join("") || '<p class="compact-placeholder">当前筛选下没有预警</p>';
@@ -758,6 +787,14 @@ function renderRiskList(result) {
     $$(".risk-row", $("#riskList")).forEach((candidate) => candidate.classList.toggle("is-selected", candidate === row));
     openRiskDetail(row.dataset.riskConversation);
   }));
+}
+
+function updateRiskRefreshTime() {
+  const refreshedAt = new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  }).format(new Date());
+  $("#riskRunStatus").textContent = `面板刷新时间：${refreshedAt}`;
 }
 
 async function loadRiskData() {
@@ -770,6 +807,7 @@ async function loadRiskData() {
     if (generation !== state.riskGeneration || state.view !== "risk") return;
     renderRiskOverview(overview);
     renderRiskList(list);
+    updateRiskRefreshTime();
   } catch (error) {
     if (generation !== state.riskGeneration) return;
     $("#riskList").innerHTML = `<p class="compact-placeholder">${escapeHtml(errorMessage(error))}</p>`;
@@ -793,9 +831,6 @@ function renderRiskRun(run) {
     ? `正在分析 ${run.processed_count}/${run.total_count}`
     : run.status === "completed" ? "增量分析已完成" : `已完成，失败 ${run.failed_count}`;
   $("#riskProgressBar").style.width = `${ratio}%`;
-  $("#riskRunStatus").textContent = active
-    ? `后台低思考分析中：${run.processed_count}/${run.total_count}`
-    : "已展示最新持久化分析结果。";
   return active;
 }
 

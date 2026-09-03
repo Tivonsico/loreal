@@ -28,13 +28,14 @@ from app.backend.config import Settings
 from app.backend.db import create_database, upgrade_database
 from app.backend.realtime import RealtimeManager
 
-SERVICE_UI_BUILD = "20260903-4"
+SERVICE_UI_BUILD = "20260903-15"
 HTML_NO_CACHE_HEADERS = {"Cache-Control": "no-store, max-age=0", "Pragma": "no-cache"}
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
     settings.media_dir.mkdir(parents=True, exist_ok=True)
+    settings.assistant_dir.mkdir(parents=True, exist_ok=True)
     frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
     engine, session_factory = create_database(settings.database_url)
 

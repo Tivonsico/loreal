@@ -86,6 +86,9 @@ export const api = {
   conversationContext: (id) => request(
     `/api/v1/management/conversations/${encodeURIComponent(id)}/context`,
   ),
+  conversationAssistanceSaved: (id) => request(
+    `/api/v1/management/conversations/${encodeURIComponent(id)}/assistance`,
+  ),
   conversationAssistance: (id) => request(
     `/api/v1/management/conversations/${encodeURIComponent(id)}/assistance`,
     { method: "POST" },

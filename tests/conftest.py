@@ -21,6 +21,7 @@ def app_pair(shared_paths):
             role="customer",
             database_url=database_url,
             media_dir=media_dir,
+            assistant_dir=tmp_path / "assistant",
             max_upload_bytes=1024 * 1024,
             poll_interval=0.02,
         )
@@ -30,6 +31,7 @@ def app_pair(shared_paths):
             role="customer_service",
             database_url=database_url,
             media_dir=media_dir,
+            assistant_dir=tmp_path / "assistant",
             max_upload_bytes=1024 * 1024,
             poll_interval=0.02,
         )
