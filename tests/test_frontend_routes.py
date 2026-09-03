@@ -15,7 +15,7 @@ def test_root_page_matches_backend_role(app_pair):
 
         assert service_page.status_code == 200
         assert len(service_page.history) == 1
-        assert str(service_page.url).endswith("/workspace/chat?ui=20260903-2")
+        assert str(service_page.url).endswith("/workspace/chat?ui=20260903-3")
         assert service_page.headers["cache-control"] == "no-store, max-age=0"
         assert service_page.headers["pragma"] == "no-cache"
         assert 'data-page-role="customer_service"' in service_page.text
@@ -44,7 +44,7 @@ def test_customer_service_has_five_direct_workspace_routes(app_pair):
             page = client.get(route)
             assert page.status_code == 200
             assert len(page.history) == 1
-            assert "ui=20260903-2" in str(page.url)
+            assert "ui=20260903-3" in str(page.url)
             assert page.headers["cache-control"] == "no-store, max-age=0"
             assert page.headers["pragma"] == "no-cache"
             assert label in page.text
@@ -65,8 +65,8 @@ def test_customer_service_uses_versioned_isolated_visual_layer(app_pair):
         assert stylesheet.status_code == 200
         assert workspace_script.status_code == 200
         assert stylesheet.headers["content-type"].startswith("text/css")
-        assert "service_workspace_v03.css?v=20260903-2" in page.text
-        assert '<meta name="ui-build" content="20260903-2">' in page.text
+        assert "service_workspace_v03.css?v=20260903-3" in page.text
+        assert '<meta name="ui-build" content="20260903-3">' in page.text
         assert 'const storageKey = "loreal.service.ui-build"' in page.text
         assert 'window.addEventListener("pageshow"' in page.text
         assert "event.persisted" in page.text
@@ -75,17 +75,17 @@ def test_customer_service_uses_versioned_isolated_visual_layer(app_pair):
         assert "订单台账" not in page.text
         assert "工单中心" not in page.text
         assert "商品档案</small>" not in page.text
-        assert "service_workspace.js?v=20260903-2" in page.text
-        assert 'href="/workspace/chat?ui=20260903-2"' in page.text
-        assert 'href="/workspace/orders?ui=20260903-2"' in page.text
-        assert 'href="/workspace/risk?ui=20260903-2"' in page.text
-        assert 'const UI_BUILD = "20260903-2"' in workspace_script.text
+        assert "service_workspace.js?v=20260903-3" in page.text
+        assert 'href="/workspace/chat?ui=20260903-3"' in page.text
+        assert 'href="/workspace/orders?ui=20260903-3"' in page.text
+        assert 'href="/workspace/risk?ui=20260903-3"' in page.text
+        assert 'const UI_BUILD = "20260903-3"' in workspace_script.text
         assert 'url.searchParams.set("ui", UI_BUILD)' in workspace_script.text
         assert '<span class="eyebrow">会话</span><h1>会话队列</h1>' not in page.text
         assert '<span class="eyebrow">订单业务</span><h1>订单管理</h1>' not in page.text
         assert '<span class="eyebrow">售后中心</span><h1>售后管理</h1>' not in page.text
         assert '<span class="eyebrow">商品目录</span><h1>商品管理</h1>' not in page.text
-        assert 'from "./api.js?v=20260811-1"' in workspace_script.text
+        assert 'from "./api.js?v=20260903-3"' in workspace_script.text
         assert "L'Oréal Service Atelier v0.3" in stylesheet.text
         assert "font-family: var(--brand-display)" in stylesheet.text
         assert "font-family: var(--brand-mono)" in stylesheet.text
@@ -222,7 +222,7 @@ def test_frontends_localize_operational_labels_and_work_order_fields(app_pair):
         customer_page = client.get("/").text
         customer_script = client.get("/static/customer.js").text
 
-    assert "service_workspace.js?v=20260903-2" in service_page
+    assert "service_workspace.js?v=20260903-3" in service_page
     assert "customer.js?v=20260810-2" in customer_page
     assert 'from "./chat.js?v=20260810-1"' in service_script
     assert 'from "./chat.js?v=20260810-1"' in customer_script
@@ -332,9 +332,9 @@ def test_customer_and_service_share_atelier_visual_contract(app_pair):
 
     assert "styles.css?v=20260901-6" in customer_page
     assert "styles.css?v=20260901-6" in service_page
-    assert "service_workspace_v03.css?v=20260903-2" in service_page
+    assert "service_workspace_v03.css?v=20260903-3" in service_page
     assert service_page.index("styles.css?v=20260901-6") < service_page.index(
-        "service_workspace_v03.css?v=20260903-2"
+        "service_workspace_v03.css?v=20260903-3"
     )
 
     assert "grid-template-columns: 270px minmax(380px, 1fr) 410px" in shared_css

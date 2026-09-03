@@ -1,4 +1,4 @@
-import { api, ConversationSocket } from "./api.js?v=20260811-1";
+import { api, ConversationSocket } from "./api.js?v=20260903-3";
 import {
   MessageTimeline,
   autoGrow,
@@ -13,7 +13,7 @@ import {
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-const UI_BUILD = "20260903-2";
+const UI_BUILD = "20260903-3";
 const viewNames = {
   chat: ["客户沟通", "客服接待席"],
   orders: ["订单管理", "订单业务"],
