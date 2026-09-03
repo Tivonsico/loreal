@@ -1,4 +1,4 @@
-import { api, ConversationSocket } from "./api.js?v=20260903-3";
+import { api, ConversationSocket } from "./api.js?v=20260903-4";
 import {
   MessageTimeline,
   autoGrow,
@@ -13,7 +13,7 @@ import {
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-const UI_BUILD = "20260903-3";
+const UI_BUILD = "20260903-4";
 const viewNames = {
   chat: ["客户沟通", "客服接待席"],
   orders: ["订单管理", "订单业务"],
@@ -80,6 +80,7 @@ const state = {
   conversation: null,
   context: null,
   assistance: null,
+  assistanceByConversation: new Map(),
   assistanceGeneration: 0,
   panorama: null,
   panoramaGeneration: 0,
@@ -311,9 +312,42 @@ function useAssistanceReply(result, closeDetails = false) {
   input.focus();
 }
 
+function renderAssistance(result) {
+  const card = $("#assistanceCard");
+  state.assistance = result;
+  renderAiInsight(result);
+  if (state.panorama) renderPanorama(state.panorama);
+  card.dataset.state = "ready";
+  $("#assistanceSummary").textContent = result.summary;
+  $("#assistanceIntent").textContent = result.intent;
+  $("#assistanceHandling").textContent = result.service_handling;
+  $("#assistanceProgress").textContent = result.current_status;
+  $("#assistanceGlance").hidden = false;
+  $("#assistanceReply").textContent = result.suggested_reply;
+  $("#assistanceReplyPreview").hidden = false;
+  $("#runAssistance").textContent = "重新分析";
+  $("#runAssistance").hidden = false;
+  $("#runAssistance").disabled = false;
+  $("#openAssistance").hidden = false;
+}
+
+function restoreOrRunAssistance(messages) {
+  const cached = state.assistanceByConversation.get(state.conversationId);
+  if (!cached) {
+    void runAssistance();
+    return;
+  }
+  renderAssistance(cached);
+  const latestMessageId = messages.at(-1)?.id ?? null;
+  if (String(cached.basis_last_message_id ?? "") !== String(latestMessageId ?? "")) {
+    markAssistanceStale();
+  }
+}
+
 async function runAssistance() {
   if (!state.conversationId) return;
   const conversationId = state.conversationId;
+  const previous = state.assistanceByConversation.get(conversationId) || null;
   const generation = ++state.assistanceGeneration;
   const card = $("#assistanceCard");
   card.dataset.state = "loading";
@@ -328,27 +362,22 @@ async function runAssistance() {
   try {
     const result = await api.conversationAssistance(conversationId);
     if (state.conversationId !== conversationId || generation !== state.assistanceGeneration) return;
-    state.assistance = result;
-    renderAiInsight(result);
-    if (state.panorama) renderPanorama(state.panorama);
-    card.dataset.state = "ready";
-    $("#assistanceSummary").textContent = result.summary;
-    $("#assistanceIntent").textContent = result.intent;
-    $("#assistanceHandling").textContent = result.service_handling;
-    $("#assistanceProgress").textContent = result.current_status;
-    $("#assistanceGlance").hidden = false;
-    $("#assistanceReply").textContent = result.suggested_reply;
-    $("#assistanceReplyPreview").hidden = false;
-    $("#runAssistance").textContent = "重新分析";
-    $("#runAssistance").hidden = false;
-    $("#openAssistance").hidden = false;
+    state.assistanceByConversation.set(conversationId, result);
+    renderAssistance(result);
   } catch (error) {
     if (state.conversationId !== conversationId || generation !== state.assistanceGeneration) return;
-    state.assistance = null;
-    $("#aiInsightCard").dataset.state = "error";
-    $("#aiInsightStatus").textContent = "分析暂时不可用";
-    card.dataset.state = "error";
-    $("#assistanceSummary").textContent = `${errorMessage(error)}。聊天与业务信息仍可正常使用。`;
+    if (previous) {
+      renderAssistance(previous);
+      markAssistanceStale();
+      $("#aiInsightStatus").textContent = "重新分析失败，保留上次结果";
+      $("#assistanceSummary").textContent = `${errorMessage(error)}。已保留上次分析，请核验后使用。`;
+    } else {
+      state.assistance = null;
+      $("#aiInsightCard").dataset.state = "error";
+      $("#aiInsightStatus").textContent = "分析暂时不可用";
+      card.dataset.state = "error";
+      $("#assistanceSummary").textContent = `${errorMessage(error)}。聊天与业务信息仍可正常使用。`;
+    }
     $("#runAssistance").textContent = "重新尝试";
     $("#runAssistance").hidden = false;
   } finally {
@@ -473,7 +502,7 @@ async function selectConversation(conversation) {
     state.context = context;
     renderContext(context);
     socket.connect(conversation.id);
-    void runAssistance();
+    restoreOrRunAssistance(messages.items);
   } catch (error) {
     timeline.reset([]);
     $("#customerContextCard").innerHTML = `<span class="context-label">客户</span><div class="context-empty">${escapeHtml(errorMessage(error))}</div>`;

@@ -28,7 +28,7 @@ from app.backend.config import Settings
 from app.backend.db import create_database, upgrade_database
 from app.backend.realtime import RealtimeManager
 
-SERVICE_UI_BUILD = "20260903-3"
+SERVICE_UI_BUILD = "20260903-4"
 HTML_NO_CACHE_HEADERS = {"Cache-Control": "no-store, max-age=0", "Pragma": "no-cache"}
 
 

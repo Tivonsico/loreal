@@ -15,7 +15,7 @@ def test_root_page_matches_backend_role(app_pair):
 
         assert service_page.status_code == 200
         assert len(service_page.history) == 1
-        assert str(service_page.url).endswith("/workspace/chat?ui=20260903-3")
+        assert str(service_page.url).endswith("/workspace/chat?ui=20260903-4")
         assert service_page.headers["cache-control"] == "no-store, max-age=0"
         assert service_page.headers["pragma"] == "no-cache"
         assert 'data-page-role="customer_service"' in service_page.text
@@ -44,7 +44,7 @@ def test_customer_service_has_five_direct_workspace_routes(app_pair):
             page = client.get(route)
             assert page.status_code == 200
             assert len(page.history) == 1
-            assert "ui=20260903-3" in str(page.url)
+            assert "ui=20260903-4" in str(page.url)
             assert page.headers["cache-control"] == "no-store, max-age=0"
             assert page.headers["pragma"] == "no-cache"
             assert label in page.text
@@ -65,8 +65,8 @@ def test_customer_service_uses_versioned_isolated_visual_layer(app_pair):
         assert stylesheet.status_code == 200
         assert workspace_script.status_code == 200
         assert stylesheet.headers["content-type"].startswith("text/css")
-        assert "service_workspace_v03.css?v=20260903-3" in page.text
-        assert '<meta name="ui-build" content="20260903-3">' in page.text
+        assert "service_workspace_v03.css?v=20260903-4" in page.text
+        assert '<meta name="ui-build" content="20260903-4">' in page.text
         assert 'const storageKey = "loreal.service.ui-build"' in page.text
         assert 'window.addEventListener("pageshow"' in page.text
         assert "event.persisted" in page.text
@@ -75,17 +75,17 @@ def test_customer_service_uses_versioned_isolated_visual_layer(app_pair):
         assert "订单台账" not in page.text
         assert "工单中心" not in page.text
         assert "商品档案</small>" not in page.text
-        assert "service_workspace.js?v=20260903-3" in page.text
-        assert 'href="/workspace/chat?ui=20260903-3"' in page.text
-        assert 'href="/workspace/orders?ui=20260903-3"' in page.text
-        assert 'href="/workspace/risk?ui=20260903-3"' in page.text
-        assert 'const UI_BUILD = "20260903-3"' in workspace_script.text
+        assert "service_workspace.js?v=20260903-4" in page.text
+        assert 'href="/workspace/chat?ui=20260903-4"' in page.text
+        assert 'href="/workspace/orders?ui=20260903-4"' in page.text
+        assert 'href="/workspace/risk?ui=20260903-4"' in page.text
+        assert 'const UI_BUILD = "20260903-4"' in workspace_script.text
         assert 'url.searchParams.set("ui", UI_BUILD)' in workspace_script.text
         assert '<span class="eyebrow">会话</span><h1>会话队列</h1>' not in page.text
         assert '<span class="eyebrow">订单业务</span><h1>订单管理</h1>' not in page.text
         assert '<span class="eyebrow">售后中心</span><h1>售后管理</h1>' not in page.text
         assert '<span class="eyebrow">商品目录</span><h1>商品管理</h1>' not in page.text
-        assert 'from "./api.js?v=20260903-3"' in workspace_script.text
+        assert 'from "./api.js?v=20260903-4"' in workspace_script.text
         assert "L'Oréal Service Atelier v0.3" in stylesheet.text
         assert "font-family: var(--brand-display)" in stylesheet.text
         assert "font-family: var(--brand-mono)" in stylesheet.text
@@ -105,8 +105,11 @@ def test_customer_service_uses_versioned_isolated_visual_layer(app_pair):
         assert ".service-v03 .context-facts" in stylesheet.text
         assert ".service-v03 .assistance-reply" in stylesheet.text
         assert "overflow-y: scroll; scrollbar-gutter: stable" in stylesheet.text
-        assert "grid-template-columns: 270px minmax(380px, 1fr) 410px" in stylesheet.text
-        assert ".service-v03 .context-heading .eyebrow { font-size: 16px; }" in stylesheet.text
+        assert "grid-template-columns: 240px minmax(340px, 1fr) 480px" in stylesheet.text
+        assert "grid-template-columns: 220px minmax(320px, 1fr) 430px" in stylesheet.text
+        assert ".service-v03 .context-heading" not in stylesheet.text
+        assert "min-height: 244px; padding: 18px" in stylesheet.text
+        assert ".service-v03 .panorama-identity strong { font-size: 18px; }" in stylesheet.text
         assert "font-size: 19px; line-height: 1.62" in stylesheet.text
         assert "font-size: 18px; line-height: 1.62" in stylesheet.text
         assert ".service-v03 .context-body > :first-child" not in stylesheet.text
@@ -124,6 +127,11 @@ def test_customer_service_uses_versioned_isolated_visual_layer(app_pair):
         assert "api.conversationAssistance(conversationId)" in workspace_script.text
         assert "void runAssistance()" in workspace_script.text
         assert workspace_script.text.count("api.conversationAssistance(conversationId)") == 1
+        assert "assistanceByConversation: new Map()" in workspace_script.text
+        assert "function restoreOrRunAssistance(messages)" in workspace_script.text
+        assert "state.assistanceByConversation.set(conversationId, result)" in workspace_script.text
+        assert "cached.basis_last_message_id" in workspace_script.text
+        assert "restoreOrRunAssistance(messages.items)" in workspace_script.text
         assert "result.intent_confidence ?? 0.5" in workspace_script.text
         assert "confidence + 4" not in workspace_script.text
         assert "api.customerPanorama(conversationId)" in workspace_script.text
@@ -197,6 +205,8 @@ def test_customer_service_shell_preserves_workspace_dom_contract(app_pair):
     assert 'id="assistanceTitle"' not in page
     assert 'class="assistance-mark"' not in page
     assert "AI 会话判断 · 生成内容" not in page
+    assert "AI 提炼当前会话，原始业务信息按需核对" not in page
+    assert '<span class="eyebrow">接待辅助</span>' not in page
     assert 'id="assistanceMode"' not in page
     assert "先看结论" not in page
     assert page.index('id="assistanceReplyPreview"') < page.index('id="openAssistance"')
@@ -222,7 +232,7 @@ def test_frontends_localize_operational_labels_and_work_order_fields(app_pair):
         customer_page = client.get("/").text
         customer_script = client.get("/static/customer.js").text
 
-    assert "service_workspace.js?v=20260903-3" in service_page
+    assert "service_workspace.js?v=20260903-4" in service_page
     assert "customer.js?v=20260810-2" in customer_page
     assert 'from "./chat.js?v=20260810-1"' in service_script
     assert 'from "./chat.js?v=20260810-1"' in customer_script
@@ -332,9 +342,9 @@ def test_customer_and_service_share_atelier_visual_contract(app_pair):
 
     assert "styles.css?v=20260901-6" in customer_page
     assert "styles.css?v=20260901-6" in service_page
-    assert "service_workspace_v03.css?v=20260903-3" in service_page
+    assert "service_workspace_v03.css?v=20260903-4" in service_page
     assert service_page.index("styles.css?v=20260901-6") < service_page.index(
-        "service_workspace_v03.css?v=20260903-3"
+        "service_workspace_v03.css?v=20260903-4"
     )
 
     assert "grid-template-columns: 270px minmax(380px, 1fr) 410px" in shared_css

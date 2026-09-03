@@ -182,7 +182,7 @@
 .service-v03 .chat-workspace {
   display: grid;
   gap: var(--service-gap);
-  grid-template-columns: 270px minmax(380px, 1fr) 410px;
+  grid-template-columns: 240px minmax(340px, 1fr) 480px;
 }
 
 .service-v03 .conversation-desk {
@@ -202,7 +202,6 @@
 }
 
 .service-v03 .desk-heading h1,
-.service-v03 .context-heading h2,
 .service-v03 .management-hero h1 {
   margin: 5px 0 0;
   font-family: var(--display);
@@ -283,13 +282,9 @@
   align-content: start;
   padding: 25px 20px 19px;
   overflow-y: auto;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   border-left: 1px solid rgb(255 255 255 / 78%);
 }
-.service-v03 .context-heading { padding: 0 3px 18px; }
-.service-v03 .context-heading .eyebrow { font-size: 16px; }
-.service-v03 .context-heading h2 { font-size: 28px; font-weight: 600; line-height: 1.25; }
-.service-v03 .context-heading p { margin: 8px 0 0; color: var(--ink-soft); font-size: 15px; line-height: 1.6; }
 .service-v03 .context-body { min-height: 0; overflow-y: scroll; scrollbar-gutter: stable; }
 .service-v03 .context-sections { min-height: 0; border-top: 1px solid var(--line); }
 
@@ -516,27 +511,29 @@
   background: rgb(255 250 251 / 86%);
   box-shadow: 0 8px 20px rgb(36 24 32 / 5%);
 }
-.service-v03 .customer-panorama { padding: 14px; }
+.service-v03 .customer-panorama { min-height: 244px; padding: 18px; }
 .service-v03 .customer-panorama header,
 .service-v03 .customer-service-trail header,
 .service-v03 .ai-insight-card header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .service-v03 .customer-panorama header span,
 .service-v03 .customer-service-trail header span { color: var(--ink-plum); font-size: 14px; font-weight: 800; }
+.service-v03 .customer-panorama header span { font-size: 17px; }
 .service-v03 .customer-panorama header small,
 .service-v03 .customer-service-trail header small { color: var(--lacquer-rose); font-size: 9px; }
-.service-v03 .panorama-identity { display: flex; align-items: center; gap: 10px; margin: 12px 0 9px; }
-.service-v03 .panorama-identity i { display: grid; width: 38px; height: 38px; flex: 0 0 auto; place-items: center; border-radius: 50%; color: #fff; background: var(--lacquer-rose); font-style: normal; font-weight: 800; }
+.service-v03 .customer-panorama header small { font-size: 11px; }
+.service-v03 .panorama-identity { display: flex; align-items: center; gap: 12px; margin: 15px 0 12px; }
+.service-v03 .panorama-identity i { display: grid; width: 46px; height: 46px; flex: 0 0 auto; place-items: center; border-radius: 50%; color: #fff; background: var(--lacquer-rose); font-size: 17px; font-style: normal; font-weight: 800; }
 .service-v03 .panorama-identity p { display: grid; min-width: 0; gap: 2px; margin: 0; }
 .service-v03 .panorama-identity strong,
 .service-v03 .panorama-identity span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.service-v03 .panorama-identity strong { font-size: 15px; }
-.service-v03 .panorama-identity span { color: var(--ink-soft); font-size: 10px; }
-.service-v03 .panorama-tags { display: flex; min-height: 22px; gap: 5px; overflow: hidden; }
-.service-v03 .panorama-tags span { flex: 0 0 auto; padding: 3px 7px; border-radius: 7px; color: var(--ink-soft); background: rgb(199 134 160 / 11%); font-size: 9px; white-space: nowrap; }
-.service-v03 .panorama-metrics { display: grid; gap: 7px; margin: 10px 0 0; grid-template-columns: 1fr 1fr; }
-.service-v03 .panorama-metrics div { padding: 8px 9px; border: 1px solid var(--line); border-radius: 8px; background: rgb(255 255 255 / 58%); }
-.service-v03 .panorama-metrics dt { color: var(--ink-soft); font-size: 9px; }
-.service-v03 .panorama-metrics dd { margin: 2px 0 0; color: var(--ink-plum); font-size: 14px; font-weight: 800; }
+.service-v03 .panorama-identity strong { font-size: 18px; }
+.service-v03 .panorama-identity span { color: var(--ink-soft); font-size: 12px; }
+.service-v03 .panorama-tags { display: flex; min-height: 27px; gap: 6px; overflow: hidden; }
+.service-v03 .panorama-tags span { flex: 0 0 auto; padding: 4px 9px; border-radius: 7px; color: var(--ink-soft); background: rgb(199 134 160 / 11%); font-size: 11px; white-space: nowrap; }
+.service-v03 .panorama-metrics { display: grid; gap: 9px; margin: 13px 0 0; grid-template-columns: 1fr 1fr; }
+.service-v03 .panorama-metrics div { padding: 11px 12px; border: 1px solid var(--line); border-radius: 9px; background: rgb(255 255 255 / 58%); }
+.service-v03 .panorama-metrics dt { color: var(--ink-soft); font-size: 11px; }
+.service-v03 .panorama-metrics dd { margin: 3px 0 0; color: var(--ink-plum); font-size: 18px; font-weight: 800; }
 .service-v03 .customer-service-trail { padding: 14px 14px 10px; }
 .service-v03 .service-trail-list { position: relative; display: grid; margin-top: 9px; }
 .service-v03 .service-trail-list article { position: relative; display: grid; min-width: 0; padding: 0 0 11px 21px; grid-template-columns: 1fr; }
@@ -623,7 +620,7 @@
   .service-v03 .workspace-brand .brand-subtitle { display: none; }
   .service-v03 .workspace-nav { gap: 3px; }
   .service-v03 .workspace-nav a { min-width: 82px; }
-  .service-v03 .chat-workspace { grid-template-columns: 250px minmax(360px, 1fr) 370px; }
+  .service-v03 .chat-workspace { grid-template-columns: 220px minmax(320px, 1fr) 430px; }
 }
 
 @media (max-width: 1100px) {
@@ -648,7 +645,7 @@
   .service-v03 .chat-workspace { height: auto; grid-template-columns: 280px minmax(0, 1fr); }
   .service-v03 .conversation-desk { height: calc(100vh - var(--service-header) - 28px); min-height: 680px; }
   .service-v03 .workspace-chat-stage { height: calc(100vh - var(--service-header) - 28px); min-height: 680px; }
-  .service-v03 .context-rail { grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto; }
+  .service-v03 .context-rail { grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
   .service-v03 .context-sections { display: grid; overflow: visible; grid-template-columns: repeat(4, 1fr); }
   .service-v03 .assistance-card { grid-column: 1 / -1; margin: 10px 12px 5px; }
   .service-v03 .context-card { min-width: 0; padding: 15px 13px; border-right: 1px solid var(--line); }
