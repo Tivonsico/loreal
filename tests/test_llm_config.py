@@ -37,6 +37,6 @@ def test_emotion_analysis_defaults_are_low_latency_and_bounded(monkeypatch) -> N
 
     settings = Settings.from_env(role="customer_service")
 
-    assert settings.llm_reasoning_mode == "disabled"
-    assert settings.emotion_batch_size == 14
+    assert settings.llm_reasoning_mode == "low"
+    assert settings.emotion_batch_size == 4
     assert settings.emotion_batch_workers == 2

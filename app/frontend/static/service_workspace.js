@@ -13,7 +13,7 @@ import {
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-const UI_BUILD = "20260903-1";
+const UI_BUILD = "20260903-2";
 const viewNames = {
   chat: ["客户沟通", "客服接待席"],
   orders: ["订单管理", "订单业务"],
@@ -86,6 +86,7 @@ const state = {
   riskGeneration: 0,
   riskDetailGeneration: 0,
   riskType: "",
+  selectedRiskConversation: null,
   riskPollTimer: null,
   conversations: [],
   ticketType: "",
@@ -715,14 +716,19 @@ function riskTypeLabel(value) {
 function renderRiskList(result) {
   $("#riskListCount").textContent = `共 ${result.total} 条`;
   $("#riskList").innerHTML = result.items.map((item) => `
-    <button class="risk-row" type="button" data-risk-conversation="${escapeHtml(item.conversation_id)}">
+    <button class="risk-row${state.selectedRiskConversation === item.conversation_id ? " is-selected" : ""}" type="button" data-risk-conversation="${escapeHtml(item.conversation_id)}">
       <time>${escapeHtml(formatDate(item.updated_at))}</time>
       <span><strong>${escapeHtml(item.buyer_nickname || item.conversation_id)}</strong><small>${escapeHtml(item.summary)}</small></span>
       <b data-severity="${escapeHtml(item.severity)}">${escapeHtml(riskTypeLabel(item.risk_type))}</b>
       <em>${escapeHtml(item.severity === "high" ? "高" : item.severity === "medium" ? "中" : "低")}</em>
+      <mark data-status="${escapeHtml(item.status)}">${escapeHtml(item.status === "succeeded" ? "已分析" : item.status === "failed" ? "失败" : "待更新")}</mark>
       <i>${escapeHtml(item.assignee || "未分配")}</i><u>详情</u>
     </button>`).join("") || '<p class="compact-placeholder">当前筛选下没有预警</p>';
-  $$('[data-risk-conversation]').forEach((row) => row.addEventListener("click", () => openRiskDetail(row.dataset.riskConversation)));
+  $$('[data-risk-conversation]').forEach((row) => row.addEventListener("click", () => {
+    state.selectedRiskConversation = row.dataset.riskConversation;
+    $$(".risk-row", $("#riskList")).forEach((candidate) => candidate.classList.toggle("is-selected", candidate === row));
+    openRiskDetail(row.dataset.riskConversation);
+  }));
 }
 
 async function loadRiskData() {

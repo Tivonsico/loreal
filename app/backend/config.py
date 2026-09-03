@@ -37,8 +37,8 @@ class Settings:
     llm_model: str = "qwen3.7-flash"
     llm_timeout_seconds: float = 30.0
     llm_json_mode: bool = True
-    llm_reasoning_mode: str = "disabled"
-    emotion_batch_size: int = 14
+    llm_reasoning_mode: str = "low"
+    emotion_batch_size: int = 4
     emotion_batch_workers: int = 2
 
     def __post_init__(self) -> None:
@@ -80,7 +80,7 @@ class Settings:
             ),
             llm_json_mode=os.getenv("LLM_JSON_MODE", "true").strip().lower()
             not in {"0", "false", "no", "off"},
-            llm_reasoning_mode=os.getenv("LLM_REASONING_MODE", "disabled").strip().lower(),
-            emotion_batch_size=int(os.getenv("EMOTION_ANALYSIS_BATCH_SIZE", "14")),
+            llm_reasoning_mode=os.getenv("LLM_REASONING_MODE", "low").strip().lower(),
+            emotion_batch_size=int(os.getenv("EMOTION_ANALYSIS_BATCH_SIZE", "4")),
             emotion_batch_workers=int(os.getenv("EMOTION_ANALYSIS_WORKERS", "2")),
         )
