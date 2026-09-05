@@ -6,10 +6,11 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.backend.models import Conversation, Message, Order, Product, WorkOrder
+from app.backend.service_trail import MAX_TRAIL_NODES, build_trail_rows
 
 MAX_CHAT_CHARS = 12_000
 
@@ -135,6 +136,45 @@ def _resolve_work_order(
     return {**_record("not_linked"), "references": []}
 
 
+def _safe_service_trail(db: Session, conversation: Conversation) -> list[dict[str, Any]]:
+    """Latest trail nodes so the model writes summaries against real node titles."""
+    conversations = list(
+        db.scalars(
+            select(Conversation).where(Conversation.customer_id == conversation.customer_id)
+        )
+    )
+    conversation_ids = [item.id for item in conversations]
+    orders = list(
+        db.scalars(
+            select(Order)
+            .where(Order.customer_id == conversation.customer_id)
+            .order_by(Order.ordered_at.desc(), Order.created_at.desc())
+        )
+    )
+    work_orders = list(
+        db.scalars(
+            select(WorkOrder).where(
+                or_(
+                    WorkOrder.customer_id == conversation.customer_id,
+                    WorkOrder.conversation_id.in_(conversation_ids),
+                )
+            )
+        )
+    )
+    message_times = db.execute(
+        select(Message.conversation_id, Message.created_at).order_by(Message.created_at, Message.id)
+    ).all()
+    rows = build_trail_rows(orders, conversations, work_orders, message_times)[-MAX_TRAIL_NODES:]
+    return [
+        {
+            "title": row["title"],
+            "detail": (row["detail"] or "")[:80],
+            "occurred_at": row["occurred_at"].isoformat(),
+        }
+        for row in rows
+    ]
+
+
 def assemble_context(db: Session, conversation: Conversation) -> dict[str, Any]:
     messages = list(
         db.scalars(
@@ -203,6 +243,7 @@ def assemble_context(db: Session, conversation: Conversation) -> dict[str, Any]:
         "order": order,
         "product": product,
         "work_order": work_order,
+        "service_trail": _safe_service_trail(db, conversation),
         "reply_handbook": {"status": "source_unavailable", "candidates": []},
     }
     envelope["snapshot"]["fingerprint"] = stable_context_fingerprint(envelope)

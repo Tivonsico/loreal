@@ -135,7 +135,7 @@ def test_customer_service_uses_versioned_isolated_visual_layer(app_pair):
         assert "restoreOrRunAssistance(messages.items)" in workspace_script.text
         assert 'const ASSISTANCE_STORAGE_PREFIX = "beauty.service.assistance."' in workspace_script.text
         assert "writeStoredAssistance(conversationId, result)" in workspace_script.text
-        assert "readStoredAssistance(state.conversationId)" in workspace_script.text
+        assert "readStoredAssistance(conversationId)" in workspace_script.text
         assert "api.conversationAssistanceSaved(conversationId)" in workspace_script.text
         assert "function markStaleIfBasisChanged(cached, messages)" in workspace_script.text
         assert "confidence + 4" not in workspace_script.text

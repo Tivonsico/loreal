@@ -11,6 +11,7 @@ from app.backend.api.dependencies import require_customer_service
 from app.backend.db import get_db
 from app.backend.models import Conversation, Message, Order, WorkOrder
 from app.backend.schemas import CustomerPanoramaOut, ServiceTrailNodeOut, SourceReferenceOut
+from app.backend.service_trail import MAX_TRAIL_NODES, build_trail_rows
 
 router = APIRouter(
     prefix="/api/v1/management",
@@ -96,50 +97,16 @@ def customer_panorama(
     if any(item.ticket_type == "adverse_reaction" for item in work_orders):
         fact_tags.append("有肌肤不适记录")
 
-    trail: list[ServiceTrailNodeOut] = []
-    for order in orders:
-        trail.append(
-            ServiceTrailNodeOut(
-                kind="order_created",
-                occurred_at=_as_utc(order.ordered_at or order.created_at),
-                title="创建订单",
-                detail=order.product_name,
-                source_ref=_ref("order", order.external_id),
-            )
+    trail = [
+        ServiceTrailNodeOut(
+            kind=row["kind"],
+            occurred_at=row["occurred_at"],
+            title=row["title"],
+            detail=row["detail"],
+            source_ref=_ref(row["source_type"], row["source_id"]),
         )
-    for conversation in conversations:
-        first = next((item for item in messages if item.conversation_id == conversation.id), None)
-        if first:
-            trail.append(
-                ServiceTrailNodeOut(
-                    kind="consultation",
-                    occurred_at=_as_utc(first.created_at),
-                    title="发起咨询",
-                    detail=conversation.title,
-                    source_ref=_ref("conversation", conversation.id),
-                )
-            )
-    for ticket in work_orders:
-        trail.append(
-            ServiceTrailNodeOut(
-                kind="work_order_opened",
-                occurred_at=_as_utc(ticket.opened_at or ticket.created_at),
-                title="创建售后",
-                detail=ticket.description or ticket.external_id,
-                source_ref=_ref("work_order", ticket.external_id),
-            )
-        )
-        if ticket.closed_at:
-            trail.append(
-                ServiceTrailNodeOut(
-                    kind="work_order_closed",
-                    occurred_at=_as_utc(ticket.closed_at),
-                    title="售后完成",
-                    detail=ticket.resolution,
-                    source_ref=_ref("work_order", ticket.external_id),
-                )
-            )
-    trail.sort(key=lambda item: item.occurred_at)
+        for row in build_trail_rows(orders, conversations, work_orders, messages)
+    ]
 
     amounts = [item.total_amount for item in orders if item.total_amount is not None]
     return CustomerPanoramaOut(
@@ -153,5 +120,5 @@ def customer_panorama(
         after_sales_count=len(work_orders),
         latest_order_at=(orders[0].ordered_at or orders[0].created_at) if orders else None,
         fact_tags=fact_tags[:4],
-        service_trail=trail[-4:],
+        service_trail=trail[-MAX_TRAIL_NODES:],
     )

@@ -47,7 +47,7 @@ class CustomerServiceAssistanceAgent:
                 "emotion": advice.emotion,
                 "emotion_confidence": advice.emotion_confidence,
                 "customer_tags": advice.customer_tags,
-                "trail_summaries": advice.trail_summaries,
+                "trail_summaries": [item.model_dump() for item in advice.trail_summaries],
                 "degraded_reason": None,
             }
         )
@@ -113,8 +113,20 @@ class CustomerServiceAssistanceAgent:
             emotion=emotion,
             emotion_confidence=emotion_confidence,
             customer_tags=self._customer_tags(combined),
-            trail_summaries=[service_handling, current_status],
+            trail_summaries=self._offline_trail_summaries(context),
         )
+
+    @staticmethod
+    def _offline_trail_summaries(context: dict[str, Any]) -> list[dict[str, str]]:
+        rows: list[dict[str, str]] = []
+        for node in context.get("service_trail") or []:
+            title = str(node.get("title") or "").strip()
+            if not title:
+                continue
+            detail = str(node.get("detail") or "").strip().splitlines()
+            first_line = detail[0].strip() if detail else ""
+            rows.append({"title": title, "summary": first_line[:60] or "已记录"})
+        return rows
 
 
     @staticmethod

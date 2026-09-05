@@ -310,6 +310,22 @@ class AssistanceFactOut(BaseModel):
 EmotionLabel = Literal["positive", "neutral", "anxious", "angry", "sad"]
 
 
+class TrailSummaryOut(BaseModel):
+    """One trail node's one-sentence outcome; title matches the node it describes."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    title: str = ""
+    summary: str = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_legacy_string(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return {"title": "", "summary": value}
+        return value
+
+
 class AssistanceAnalysisOut(BaseModel):
     agent_name: str
     agent_version: str
@@ -334,7 +350,7 @@ class AssistanceAnalysisOut(BaseModel):
     emotion: EmotionLabel = "neutral"
     emotion_confidence: float = Field(default=0.5, ge=0, le=1)
     customer_tags: list[str] = Field(default_factory=list, max_length=4)
-    trail_summaries: list[str] = Field(default_factory=list, max_length=4)
+    trail_summaries: list[TrailSummaryOut] = Field(default_factory=list, max_length=4)
 
 
 EmotionRiskType = Literal[

@@ -14,6 +14,15 @@ class OpenAICompatibleProviderError(RuntimeError):
     pass
 
 
+class TrailSummary(BaseModel):
+    """One service trail node and its one-sentence outcome."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    title: str = ""
+    summary: str = ""
+
+
 class ModelAdvice(BaseModel):
     # Only the allowlisted fields below leave the provider boundary. Harmless
     # extra keys should not discard an otherwise usable model answer.
@@ -32,7 +41,7 @@ class ModelAdvice(BaseModel):
     emotion: Literal["positive", "neutral", "anxious", "angry", "sad"] = "neutral"
     emotion_confidence: float = Field(default=0.5, ge=0, le=1)
     customer_tags: list[str] = Field(default_factory=list, max_length=4)
-    trail_summaries: list[str] = Field(default_factory=list, max_length=4)
+    trail_summaries: list[TrailSummary] = Field(default_factory=list, max_length=4)
 
 
 class EmotionBatchAdvice(BaseModel):
@@ -103,7 +112,14 @@ class OpenAICompatibleChatProvider:
             "urgency 只能是 normal、medium 或 high。evidence_message_ids 只能引用输入消息 ID。"
             "intent_confidence 是 0 到 1 的意图判断置信度。"
             "emotion 只能是 positive、neutral、anxious、angry、sad；"
-            "customer_tags 是最多4个简短消费或服务偏好标签；trail_summaries 最多4条。"
+            "customer_tags 是最多4个简短消费或服务偏好标签。"
+            "输入里的 service_trail 是客户服务轨迹节点，每项含 title 和 detail。"
+            "trail_summaries 必须是 JSON 数组，每个元素是 {\"title\": 轨迹节点标题, \"summary\": 一句话}，"
+            "与服务轨迹节点一一对应，title 必须原样使用节点标题。"
+            "summary 只写一句话、不超过30字，写这个节点最终办成的结果"
+            "（订单买到了什么、咨询得到什么答复、售后处理到哪一步），"
+            "不是过程描述；不照抄 detail 原文，不含日期、图片文件名和聊天原句。"
+            "没有把握写清结果的节点就跳过，不要编造；输入没有 service_trail 时返回空数组。"
         )
         few_shot_messages = self._few_shot_messages()
         payload: dict[str, Any] = {
@@ -139,7 +155,44 @@ class OpenAICompatibleChatProvider:
         ]
         if not evidence:
             evidence = [item["id"] for item in messages if item["sender_role"] == "customer"][-3:]
-        return advice.model_copy(update={"evidence_message_ids": evidence})
+        trail_summaries = self._align_trail_summaries(
+            advice.trail_summaries, context.get("service_trail") or []
+        )
+        return advice.model_copy(
+            update={"evidence_message_ids": evidence, "trail_summaries": trail_summaries}
+        )
+
+    @staticmethod
+    def _align_trail_summaries(
+        summaries: list[TrailSummary], nodes: list[dict[str, Any]]
+    ) -> list[TrailSummary]:
+        """Keep only summaries bound to real trail nodes; titleless ones map by position."""
+        if not nodes:
+            return []
+        node_titles = [str(node.get("title") or "") for node in nodes]
+        by_title: dict[str, str] = {}
+        positional: list[str] = []
+        for index, item in enumerate(summaries):
+            text = (item.summary or "").strip()
+            if not text:
+                continue
+            title = (item.title or "").strip()
+            if title:
+                by_title.setdefault(title, text)
+            else:
+                positional.append(text)
+        aligned: list[TrailSummary] = []
+        for index, node_title in enumerate(node_titles):
+            text = None
+            for known_title, candidate in by_title.items():
+                if known_title == node_title or node_title in known_title or known_title in node_title:
+                    text = candidate
+                    break
+            if text is None and index < len(positional):
+                text = positional[index]
+            if text:
+                aligned.append(TrailSummary(title=node_title, summary=text[:80]))
+        return aligned
 
     def classify_emotions(self, contexts: list[dict[str, Any]]) -> list[EmotionBatchAdvice]:
         """Classify a bounded batch without generating replies or exposing business records."""
@@ -352,6 +405,9 @@ class OpenAICompatibleChatProvider:
                     "next_actions": ["留意退款到账情况，超时后跟进财务"],
                     "suggested_reply": "退款申请已经提交了，请留意到账通知。",
                     "evidence_message_ids": [1, 2],
+                    "trail_summaries": [
+                        {"title": "创建售后", "summary": "线下退10元已申请，等1-3个工作日到账"}
+                    ],
                 },
             ),
             (
@@ -367,6 +423,9 @@ class OpenAICompatibleChatProvider:
                     "next_actions": ["明天检查物流轨迹是否更新"],
                     "suggested_reply": "已经帮您催快递了，我明天再帮您看一次物流进度。",
                     "evidence_message_ids": [1, 2],
+                    "trail_summaries": [
+                        {"title": "创建订单", "summary": "包裹已发出，物流卡在中转站"}
+                    ],
                 },
             ),
             (
@@ -382,6 +441,10 @@ class OpenAICompatibleChatProvider:
                     "next_actions": ["确认客户已经停用产品", "跟进退件物流"],
                     "suggested_reply": "请先停用这款喷雾。如果不适持续或加重，请及时就医。",
                     "evidence_message_ids": [1, 2],
+                    "trail_summaries": [
+                        {"title": "创建售后", "summary": "退货申请已通过，停用等寄回"},
+                        {"title": "售后完成", "summary": "仓库收件后完成退款"},
+                    ],
                 },
             ),
         )
@@ -415,7 +478,7 @@ class OpenAICompatibleChatProvider:
                 data[field] = [data[field]]
             if isinstance(data.get(field), list):
                 data[field] = data[field][:5]
-        for field in ("customer_tags", "trail_summaries"):
+        for field in ("customer_tags",):
             if isinstance(data.get(field), str):
                 data[field] = [data[field]]
             if isinstance(data.get(field), list):
@@ -424,6 +487,21 @@ class OpenAICompatibleChatProvider:
                     for item in data[field][:4]
                     if str(item).strip()
                 ]
+        raw_trail = data.get("trail_summaries")
+        if isinstance(raw_trail, str):
+            raw_trail = [raw_trail]
+        trail: list[dict[str, str]] = []
+        for item in (raw_trail or [])[:4]:
+            if isinstance(item, str):
+                text = item.strip()[:80]
+                if text:
+                    trail.append({"title": "", "summary": text})
+            elif isinstance(item, dict):
+                title = str(item.get("title") or "").strip()[:40]
+                text = str(item.get("summary") or "").strip()[:80]
+                if text:
+                    trail.append({"title": title, "summary": text})
+        data["trail_summaries"] = trail
         if isinstance(data.get("evidence_message_ids"), list):
             data["evidence_message_ids"] = [
                 int(item)

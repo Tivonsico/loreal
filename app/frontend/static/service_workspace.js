@@ -464,11 +464,35 @@ function setContextLoading() {
   $("#serviceTrailList").innerHTML = '<p class="compact-placeholder">正在还原服务轨迹…</p>';
 }
 
+function trailFirstSentence(detail) {
+  const text = String(detail || "").trim();
+  if (!text) return "";
+  return (text.split(/\n|。|！|？/)[0] || "").trim().slice(0, 40);
+}
+
+function trailSummaryMatcher(summaries = []) {
+  const byTitle = new Map();
+  const positional = [];
+  summaries.forEach((item, index) => {
+    if (item && typeof item === "object") {
+      if (item.title && item.summary) byTitle.set(item.title, item.summary);
+      else if (item.summary) positional[index] = item.summary;
+    } else if (typeof item === "string" && item) {
+      positional[index] = item;
+    }
+  });
+  return (node, index) => byTitle.get(node.title) || positional[index] || "";
+}
+
 function renderServiceTrail(nodes = [], aiSummaries = []) {
   $("#serviceTrailCount").textContent = `${nodes.length} 个节点`;
-  $("#serviceTrailList").innerHTML = nodes.map((node, index) => `
+  const summaryAt = trailSummaryMatcher(aiSummaries);
+  $("#serviceTrailList").innerHTML = nodes.map((node, index) => {
+    const summary = summaryAt(node, index) || trailFirstSentence(node.detail);
+    return `
     <article><i aria-hidden="true"></i><div><time>${escapeHtml(formatDate(node.occurred_at))}</time>
-    <strong>${escapeHtml(node.title)}</strong><p>${escapeHtml(aiSummaries[index] || node.detail || "已记录")}</p></div></article>`).join("")
+    <strong>${escapeHtml(node.title)}</strong><p>${escapeHtml(summary || "已记录")}</p></div></article>`;
+  }).join("")
     || '<p class="compact-placeholder">暂无可还原的服务节点</p>';
 }
 

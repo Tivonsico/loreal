@@ -14,7 +14,7 @@ def shared_paths(tmp_path: Path) -> tuple[str, Path]:
 
 
 @pytest.fixture
-def app_pair(shared_paths):
+def app_pair(shared_paths, tmp_path: Path):
     database_url, media_dir = shared_paths
     customer = create_app(
         Settings(
